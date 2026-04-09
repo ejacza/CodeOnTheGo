@@ -18,7 +18,7 @@ import org.appdevforall.codeonthego.indexing.api.Indexable
 import kotlin.collections.iterator
 
 /**
- * A persistent [Index] backed by SQLite via AndroidX.
+ * An [Index] backed by SQLite via AndroidX.
  *
  * Creates a table dynamically based on the [IndexDescriptor]:
  * ```
@@ -44,14 +44,15 @@ import kotlin.collections.iterator
  * @param T The indexed entry type.
  * @param descriptor Defines fields and serialization.
  * @param context Android context (for database file location).
- * @param dbName Database file name. Different index types can share
+ * @param dbName Database file name. Pass `null` to create an in-memory database
+ *               that is discarded when closed. Different index types can share
  *               a database (each gets its own table) or use separate files.
  * @param batchSize Number of rows per INSERT transaction.
  */
-class PersistentIndex<T : Indexable>(
+class SQLiteIndex<T : Indexable>(
     override val descriptor: IndexDescriptor<T>,
     context: Context,
-    dbName: String,
+    dbName: String?,
     override val name: String = "persistent:${descriptor.name}",
     private val batchSize: Int = 500,
 ) : Index<T> {

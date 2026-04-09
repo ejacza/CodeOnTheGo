@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.take
 import org.appdevforall.codeonthego.indexing.FilteredIndex
-import org.appdevforall.codeonthego.indexing.PersistentIndex
+import org.appdevforall.codeonthego.indexing.SQLiteIndex
 import org.appdevforall.codeonthego.indexing.api.indexQuery
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_CONTAINING_CLASS
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_NAME
@@ -19,7 +19,7 @@ import java.io.Closeable
  */
 class JvmLibrarySymbolIndex private constructor(
 	/** Persistent cache — stores every JAR ever indexed. */
-	val libraryCache: PersistentIndex<JvmSymbol>,
+	val libraryCache: SQLiteIndex<JvmSymbol>,
 
 	/** Filtered view — only shows JARs on the current classpath. */
 	val libraryView: FilteredIndex<JvmSymbol>,
@@ -37,7 +37,7 @@ class JvmLibrarySymbolIndex private constructor(
 			context: Context,
 			dbName: String = DB_NAME_DEFAULT,
 		): JvmLibrarySymbolIndex {
-			val cache = PersistentIndex(
+			val cache = SQLiteIndex(
 				descriptor = JvmSymbolDescriptor,
 				context = context,
 				dbName = dbName,

@@ -8,6 +8,8 @@ import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.bootClassPaths
 import org.appdevforall.codeonthego.indexing.jvm.JVM_LIBRARY_SYMBOL_INDEX
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibrarySymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KOTLIN_SOURCE_SYMBOL_INDEX
+import org.appdevforall.codeonthego.indexing.jvm.KotlinSourceSymbolIndex
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaLibraryModule
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
 import org.jetbrains.kotlin.analysis.project.structure.builder.KtModuleProviderBuilder
@@ -52,6 +54,12 @@ internal class KotlinProjectModel {
 			.indexingServiceManager
 			.registry
 			.get(JVM_LIBRARY_SYMBOL_INDEX)
+
+	val sourceIndex: KotlinSourceSymbolIndex?
+		get() = ProjectManagerImpl.getInstance()
+			.indexingServiceManager
+			.registry
+			.get(KOTLIN_SOURCE_SYMBOL_INDEX)
 
 	/**
 	 * The kind of change that occurred.

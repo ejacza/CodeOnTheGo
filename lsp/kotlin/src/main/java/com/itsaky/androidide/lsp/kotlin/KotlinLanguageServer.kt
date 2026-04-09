@@ -57,6 +57,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.jvm.JvmIndexingService
+import org.appdevforall.codeonthego.indexing.jvm.KotlinSourceIndexingService
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -104,6 +105,10 @@ class KotlinLanguageServer : ILanguageServer {
 		if (!EventBus.getDefault().isRegistered(this)) {
 			EventBus.getDefault().register(this)
 		}
+
+		ProjectManagerImpl.getInstance().indexingServiceManager.register(
+			KotlinSourceIndexingService(context = BaseApplication.baseInstance)
+		)
 	}
 
 	override fun shutdown() {
@@ -128,8 +133,11 @@ class KotlinLanguageServer : ILanguageServer {
 			.indexingServiceManager
 		val jvmIndexingService =
 			indexingServiceManager.getService(JvmIndexingService.ID) as? JvmIndexingService?
+		val kotlinSourceIndexingService =
+			indexingServiceManager.getService(KotlinSourceIndexingService.ID) as? KotlinSourceIndexingService?
 
 		jvmIndexingService?.refresh()
+		kotlinSourceIndexingService?.refresh()
 
 		val jdkHome = Environment.JAVA_HOME.toPath()
 		val jdkRelease = IJdkDistributionProvider.DEFAULT_JAVA_RELEASE

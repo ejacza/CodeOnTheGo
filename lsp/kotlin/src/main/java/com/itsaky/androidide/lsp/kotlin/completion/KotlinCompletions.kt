@@ -22,6 +22,7 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.JvmTypeAliasInfo
+import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
 import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
@@ -276,92 +277,106 @@ context(env: CompilationEnvironment, ctx: AnalysisContext)
 private suspend fun KaSession.collectUnimportedSymbols(
 	to: MutableList<CompletionItem>
 ) {
+	val currentPackage = ctx.ktElement.containingKtFile.packageDirective?.name
+	val useSiteModule = this.useSiteModule
+
+	// Library symbols: JAR-based, use full SymbolVisibilityChecker
 	val visibilityChecker = env.symbolVisibilityChecker
 	if (visibilityChecker == null) {
 		logger.warn("No visibility checker found")
 		return
 	}
 
-	val librarySymbolIndex = env.libraryIndex
-	if (librarySymbolIndex == null) {
-		logger.warn("Unable to find JVM library symbol index")
-		return
-	}
-
-	val useSiteModule = this.useSiteModule
-	librarySymbolIndex.findByPrefix(ctx.partial)
-		.collect { symbol ->
+	env.libraryIndex?.findByPrefix(ctx.partial)
+		?.collect { symbol ->
 			val isVisible = visibilityChecker.isVisible(
 				symbol = symbol,
 				useSiteModule = useSiteModule,
-				useSitePackage = ctx.ktElement.containingKtFile.packageDirective?.name
+				useSitePackage = currentPackage,
+			)
+			if (!isVisible) return@collect
+			buildUnimportedSymbolItem(symbol)?.let { to += it }
+		}
+
+	// Source symbols: project .kt files — skip private and same-package symbols
+	env.sourceIndex?.findByPrefix(ctx.partial)
+		?.collect { symbol ->
+			if (symbol.packageName == currentPackage) return@collect
+
+			val isVisible = visibilityChecker.isVisible(
+				symbol = symbol,
+				useSiteModule = useSiteModule,
+				useSitePackage = currentPackage
 			)
 
 			if (!isVisible) return@collect
 
-			if (symbol.kind.isCallable && !symbol.isTopLevel && !symbol.isExtension) {
-				// member-level, non-imported callable symbols should not be
-				// completed in scope completions
-				return@collect
-			}
-
-			if (symbol.isExtension) {
-				val receiverTypeName = symbol.receiverTypeName
-				if (receiverTypeName != null) {
-					val receiverClassId = internalNameToClassId(receiverTypeName)
-					val receiverType = findClass(receiverClassId)
-					if (receiverType != null) {
-						val satisfiesImplicitReceivers = ctx.scopeContext.implicitReceivers.any { receiver ->
-							receiver.type.isSubtypeOf(receiverType)
-						}
-
-						// the extension property/function's receiver type
-						// is not available in current context, so ignore this sym
-						if (!satisfiesImplicitReceivers) return@collect
-					} else return@collect
-				}
-			}
-
-			val item = ktCompletionItem(
-				name = symbol.shortName,
-				kind = kindOf(symbol),
-			)
-
-			item.overrideTypeText = symbol.returnTypeDisplay
-			when (symbol.kind) {
-				JvmSymbolKind.FUNCTION, JvmSymbolKind.CONSTRUCTOR -> {
-					val data = symbol.data as JvmFunctionInfo
-					item.detail = data.signatureDisplay
-					item.setInsertTextForFunction(
-						name = symbol.shortName,
-						hasParams = data.parameterCount > 0,
-					)
-
-					if (symbol.kind == JvmSymbolKind.CONSTRUCTOR) {
-						item.overrideTypeText = symbol.shortName
-					}
-				}
-
-				JvmSymbolKind.TYPE_ALIAS -> {
-					item.detail = (symbol.data as JvmTypeAliasInfo).expandedTypeFqName
-				}
-
-				in JvmSymbolKind.CLASSIFIER_KINDS -> {
-					val classInfo = symbol.data as JvmClassInfo
-					item.detail = symbol.name
-					item.setClassCompletionData(
-						className = symbol.name,
-						isNested = classInfo.isInner,
-						topLevelClass = classInfo.containingClassFqName,
-					)
-				}
-
-				else -> {}
-			}
-
-			logger.debug("Adding completion item: {}", item)
-			to += item
+			buildUnimportedSymbolItem(symbol)?.let { to += it }
 		}
+}
+
+context(ctx: AnalysisContext)
+private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionItem? {
+	if (symbol.kind.isCallable && !symbol.isTopLevel && !symbol.isExtension) {
+		// member-level, non-extension callable symbols should not be
+		// completed in scope completions
+		return null
+	}
+
+	if (symbol.isExtension) {
+		val receiverTypeName = symbol.receiverTypeName
+		if (receiverTypeName != null) {
+			val receiverClassId = internalNameToClassId(receiverTypeName)
+			val receiverType = findClass(receiverClassId)
+			if (receiverType != null) {
+				val satisfiesImplicitReceivers = ctx.scopeContext.implicitReceivers.any { receiver ->
+					receiver.type.isSubtypeOf(receiverType)
+				}
+				// the extension property/function's receiver type
+				// is not available in current context, so ignore this sym
+				if (!satisfiesImplicitReceivers) return null
+			} else return null
+		}
+	}
+
+	val item = ktCompletionItem(
+		name = symbol.shortName,
+		kind = kindOf(symbol),
+	)
+
+	item.overrideTypeText = symbol.returnTypeDisplay
+	when (symbol.kind) {
+		JvmSymbolKind.FUNCTION, JvmSymbolKind.CONSTRUCTOR -> {
+			val data = symbol.data as JvmFunctionInfo
+			item.detail = data.signatureDisplay
+			item.setInsertTextForFunction(
+				name = symbol.shortName,
+				hasParams = data.parameterCount > 0,
+			)
+			if (symbol.kind == JvmSymbolKind.CONSTRUCTOR) {
+				item.overrideTypeText = symbol.shortName
+			}
+		}
+
+		JvmSymbolKind.TYPE_ALIAS -> {
+			item.detail = (symbol.data as JvmTypeAliasInfo).expandedTypeFqName
+		}
+
+		in JvmSymbolKind.CLASSIFIER_KINDS -> {
+			val classInfo = symbol.data as JvmClassInfo
+			item.detail = symbol.name
+			item.setClassCompletionData(
+				className = symbol.name,
+				isNested = classInfo.isInner,
+				topLevelClass = classInfo.containingClassFqName,
+			)
+		}
+
+		else -> {}
+	}
+
+	logger.debug("Adding completion item: {}", item)
+	return item
 }
 
 private fun internalNameToClassId(internalName: String): ClassId {

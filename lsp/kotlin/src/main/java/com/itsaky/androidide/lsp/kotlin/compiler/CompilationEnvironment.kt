@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.kotlin.compiler
 import com.itsaky.androidide.lsp.kotlin.KtFileManager
 import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibrarySymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KotlinSourceSymbolIndex
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDeclarationProviderFactory
@@ -94,6 +95,9 @@ internal class CompilationEnvironment(
 
 	val requireLibraryIndex: JvmLibrarySymbolIndex
 		get() = checkNotNull(libraryIndex)
+
+	val sourceIndex: KotlinSourceSymbolIndex?
+		get() = project.sourceIndex
 
 	private val envMessageCollector = object : MessageCollector {
 		override fun clear() {
