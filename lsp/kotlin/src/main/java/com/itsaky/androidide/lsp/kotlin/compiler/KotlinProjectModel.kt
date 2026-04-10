@@ -155,6 +155,7 @@ internal class KotlinProjectModel {
 				.associateWith(::addLibrary)
 
 			val subprojectsAsModules = mutableMapOf<ModuleProject, KaSourceModule>()
+			val sourceRootToModuleMap = mutableMapOf<Path, KaSourceModule>()
 
 			fun getOrCreateModule(project: ModuleProject): KaSourceModule {
 				subprojectsAsModules[project]?.let { return it }
@@ -186,12 +187,16 @@ internal class KotlinProjectModel {
 				}
 
 				subprojectsAsModules[project] = module
+				sourceRoots.forEach { root -> sourceRootToModuleMap[root] = module }
 				return module
 			}
 
 			moduleProjects.forEach { addModule(getOrCreateModule(it)) }
 
-			val moduleResolver = ModuleResolver(jarMap = jarToModMap)
+			val moduleResolver = ModuleResolver(
+				jarMap = jarToModMap,
+				sourceRootMap = sourceRootToModuleMap,
+			)
 			_moduleResolver = moduleResolver
 			_symbolVisibilityChecker = SymbolVisibilityChecker(moduleResolver)
 		}

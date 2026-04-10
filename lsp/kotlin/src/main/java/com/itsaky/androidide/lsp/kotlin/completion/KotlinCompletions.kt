@@ -364,9 +364,9 @@ private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionIt
 
 		in JvmSymbolKind.CLASSIFIER_KINDS -> {
 			val classInfo = symbol.data as JvmClassInfo
-			item.detail = symbol.name
+			item.detail = symbol.fqName
 			item.setClassCompletionData(
-				className = symbol.name,
+				className = symbol.fqName,
 				isNested = classInfo.isInner,
 				topLevelClass = classInfo.containingClassFqName,
 			)
