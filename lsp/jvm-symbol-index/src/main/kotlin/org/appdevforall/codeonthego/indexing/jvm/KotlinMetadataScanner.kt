@@ -345,7 +345,8 @@ object KotlinMetadataScanner {
 	}
 
 	private fun kmTypeToDisplayName(type: KmType): String {
-		val base = kmTypeToDisplayName(type).substringAfterLast('.')
+		val base = kmTypeToName(type).substringAfterLast('/')
+			.substringAfterLast('$')
 		val args = type.arguments.mapNotNull { it.type?.let { t -> kmTypeToDisplayName(t) } }
 		return buildString {
 			append(base)
