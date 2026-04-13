@@ -30,17 +30,10 @@ import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.Plugin
 import org.jetbrains.kotlin.analysis.decompiler.stub.file.ClsKotlinBinaryClassCache
 import org.jetbrains.kotlin.analysis.decompiler.stub.file.DummyFileAttributeService
 import org.jetbrains.kotlin.analysis.decompiler.stub.file.FileAttributeService
-import org.jetbrains.kotlin.cli.jvm.compiler.MockExternalAnnotationsManager
-import org.jetbrains.kotlin.cli.jvm.compiler.MockInferredAnnotationsManager
-import org.jetbrains.kotlin.com.intellij.codeInsight.ExternalAnnotationsManager
-import org.jetbrains.kotlin.com.intellij.codeInsight.InferredAnnotationsManager
-import org.jetbrains.kotlin.com.intellij.core.CoreJavaFileManager
 import org.jetbrains.kotlin.com.intellij.mock.MockApplication
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
-import org.jetbrains.kotlin.com.intellij.openapi.extensions.DefaultPluginDescriptor
 import org.jetbrains.kotlin.com.intellij.psi.SmartPointerManager
 import org.jetbrains.kotlin.com.intellij.psi.SmartTypePointerManager
-import org.jetbrains.kotlin.com.intellij.psi.impl.file.impl.JavaFileManager
 import org.jetbrains.kotlin.com.intellij.psi.impl.smartPointers.SmartPointerManagerImpl
 import org.jetbrains.kotlin.com.intellij.psi.impl.smartPointers.SmartTypePointerManagerImpl
 
@@ -48,7 +41,6 @@ import org.jetbrains.kotlin.com.intellij.psi.impl.smartPointers.SmartTypePointer
 internal object LspServiceRegistrar : AnalysisApiSimpleServiceRegistrar() {
 
 	private const val PLUGIN_RELATIVE_PATH = "/META-INF/kt-lsp/kt-lsp.xml"
-	private val pluginDescriptor = DefaultPluginDescriptor("kt-lsp-plugin-descriptor")
 
 	override fun registerApplicationServices(application: MockApplication) {
 		PluginStructureProvider.registerApplicationServices(application, PLUGIN_RELATIVE_PATH)
@@ -68,12 +60,6 @@ internal object LspServiceRegistrar : AnalysisApiSimpleServiceRegistrar() {
 
 
 		with(project) {
-			registerService(
-				CoreJavaFileManager::class.java,
-				project.getService(JavaFileManager::class.java) as CoreJavaFileManager
-			)
-			registerService(ExternalAnnotationsManager::class.java, MockExternalAnnotationsManager())
-			registerService(InferredAnnotationsManager::class.java, MockInferredAnnotationsManager())
 			registerService(
 				KotlinLifetimeTokenFactory::class.java,
 				KotlinReadActionConfinementLifetimeTokenFactory::class.java

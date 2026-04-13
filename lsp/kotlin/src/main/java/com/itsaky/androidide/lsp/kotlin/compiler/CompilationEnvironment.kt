@@ -29,6 +29,7 @@ import org.jetbrains.kotlin.analysis.api.platform.packages.KotlinPackageProvider
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinModuleDependentsProvider
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinProjectStructureProvider
 import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.ApplicationServiceRegistration
+import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.StandaloneProjectFactory
 import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.registerProjectExtensionPoints
 import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.registerProjectModelServices
 import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.registerProjectServices
@@ -40,6 +41,7 @@ import org.jetbrains.kotlin.cli.jvm.compiler.CliMetadataFinderFactory
 import org.jetbrains.kotlin.cli.jvm.compiler.CliVirtualFileFinderFactory
 import org.jetbrains.kotlin.cli.jvm.compiler.JvmPackagePartProvider
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCliJavaFileManagerImpl
+import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironment
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironmentMode
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreProjectEnvironment
@@ -108,8 +110,17 @@ internal class CompilationEnvironment(
 ) : KotlinProjectModel.ProjectModelListener, AutoCloseable {
 	private var disposable = Disposer.newDisposable()
 
+	val projectEnv: KotlinCoreProjectEnvironment
+
+	val applicationEnv: KotlinCoreApplicationEnvironment
+		get() = projectEnv.environment as KotlinCoreApplicationEnvironment
+
 	val application: MockApplication
+		get() = applicationEnv.application
+
 	val project: MockProject
+		get() = projectEnv.project
+
 	val parser: KtPsiFactory
 	val commandProcessor: CommandProcessor
 	val modules: List<KtModule>
@@ -182,21 +193,14 @@ internal class CompilationEnvironment(
 		System.setProperty("java.awt.headless", "true")
 		setupIdeaStandaloneExecution()
 
-		val appEnv = KotlinCoreEnvironment.getOrCreateApplicationEnvironment(
-			projectDisposable = disposable,
-			configuration = createCompilerConfiguration(),
-			environmentMode = KotlinCoreApplicationEnvironmentMode.Production,
-		)
+		projectEnv = StandaloneProjectFactory
+			.createProjectEnvironment(
+				projectDisposable = disposable,
+				applicationEnvironmentMode = KotlinCoreApplicationEnvironmentMode.Production,
+				compilerConfiguration = createCompilerConfiguration(),
+			)
 
-		val projectEnv = KotlinCoreProjectEnvironment(
-			disposable = disposable,
-			applicationEnvironment = appEnv
-		)
-
-		project = projectEnv.project
 		project.registerRWLock()
-
-		application = appEnv.application
 
 		ApplicationServiceRegistration.registerWithCustomRegistration(
 			application,
@@ -226,9 +230,8 @@ internal class CompilationEnvironment(
 		serviceRegistrars.registerProjectServices(project, data = Unit)
 		serviceRegistrars.registerProjectModelServices(project, disposable, data = Unit)
 
-		modules = workspace.collectKtModules(project, appEnv)
+		modules = workspace.collectKtModules(project, applicationEnv)
 
-		project.setupHighestLanguageLevel()
 		val librariesScope = ProjectScope.getLibrariesScope(project)
 		val libraryRoots = modules
 			.asFlatSequence()
@@ -253,6 +256,7 @@ internal class CompilationEnvironment(
 		).apply {
 			addRoots(libraryRoots, MessageCollector.NONE)
 		}
+
 		val rootsIndex =
 			JvmDependenciesDynamicCompoundIndex(shouldOnlyFindFirstClass = false).apply {
 				addIndex(
