@@ -4,6 +4,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
+import org.jetbrains.kotlin.analysis.api.impl.base.util.LibraryUtils
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.org.objectweb.asm.AnnotationVisitor
 import org.jetbrains.org.objectweb.asm.ClassReader
 import org.jetbrains.org.objectweb.asm.ClassVisitor
@@ -49,6 +52,23 @@ import kotlin.metadata.visibility
 object KotlinMetadataScanner {
 
 	private val log = LoggerFactory.getLogger(KotlinMetadataScanner::class.java)
+
+	@OptIn(KaImplementationDetail::class)
+	fun scan(rootVf: VirtualFile, sourceId: String = rootVf.path): Flow<JvmSymbol> = flow {
+		val allFiles = LibraryUtils.getAllVirtualFilesFromRoot(rootVf, includeRoot = true)
+		for (vf in allFiles) {
+			if (!vf.name.endsWith(".class")) continue
+			if (vf.name == "module-info.class") continue
+			try {
+				vf.contentsToByteArray().inputStream().use { input ->
+					parseKotlinClass(input, sourceId)?.forEach { emit(it) }
+				}
+			} catch (e: Exception) {
+				log.debug("Failed to parse {}: {}", vf.path, e.message)
+			}
+		}
+	}
+		.flowOn(Dispatchers.IO)
 
 	fun scan(jarPath: Path, sourceId: String = jarPath.pathString): Flow<JvmSymbol> = flow {
 		val jar = try {
@@ -393,6 +413,7 @@ object KotlinMetadataScanner {
 								metadataVersion = value.copyOf()
 							}
 						}
+
 						"k" -> metadataKind = value as? Int
 						"xi" -> extraInt = value as? Int
 						"xs" -> extraString = value as? String

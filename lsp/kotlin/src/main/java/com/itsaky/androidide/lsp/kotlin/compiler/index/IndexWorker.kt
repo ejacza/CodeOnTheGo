@@ -1,9 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
 import com.itsaky.androidide.lsp.kotlin.compiler.read
-import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.jvm.CombinedJarScanner
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
@@ -31,17 +29,8 @@ internal class IndexWorker(
 		while (true) {
 			when (val command = queue.take()) {
 				is IndexCommand.IndexLibraryFile -> {
-					if (command.vf.fileSystem.protocol != "file") {
-						logger.warn("Unknown library file protocol: {}", command.vf.path)
-						continue
-					}
-
-					if (command.vf.extension != "jar") {
-						logger.warn("Cannot index {} JVM library", command.vf.path)
-						continue
-					}
-
-					libraryIndex.insertAll(CombinedJarScanner.scan(jarPath = command.vf.toNioPath()))
+					logger.debug("index library: {}", command.vf.path)
+					libraryIndex.insertAll(CombinedJarScanner.scan(rootVf = command.vf))
 					libraryIndexCount++
 				}
 

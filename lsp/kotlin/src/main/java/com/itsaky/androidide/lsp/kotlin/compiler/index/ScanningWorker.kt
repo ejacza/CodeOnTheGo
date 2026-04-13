@@ -3,12 +3,17 @@ package com.itsaky.androidide.lsp.kotlin.compiler.index
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isSourceModule
+import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class ScanningWorker(
 	private val indexWorker: IndexWorker,
 	private val modules: List<KtModule>,
 ) {
+
+	companion object {
+		private val logger = LoggerFactory.getLogger(ScanningWorker::class.java)
+	}
 
 	private val isRunning = AtomicBoolean(false)
 
@@ -22,8 +27,9 @@ internal class ScanningWorker(
 	}
 
 	private suspend fun scan() {
-		val allModules = modules.asFlatSequence()
+		val allModules = modules.asFlatSequence().toList()
 		val sourceFiles = allModules
+			.asSequence()
 			.filter { it.isSourceModule }
 			.flatMap { it.computeFiles(extended = true) }
 			.takeWhile { isRunning.get() }
@@ -43,6 +49,7 @@ internal class ScanningWorker(
 			}
 
 		allModules
+			.asSequence()
 			.filterNot { it.isSourceModule }
 			.flatMap { it.computeFiles(extended = false) }
 			.takeWhile { isRunning.get() }

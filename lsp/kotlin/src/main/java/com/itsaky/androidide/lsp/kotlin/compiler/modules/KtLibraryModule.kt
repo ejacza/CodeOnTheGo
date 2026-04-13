@@ -10,16 +10,21 @@ import org.jetbrains.kotlin.analysis.api.projectStructure.KaLibraryModule
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaLibrarySourceModule
 import org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem
 import org.jetbrains.kotlin.com.intellij.core.CoreApplicationEnvironment
+import org.jetbrains.kotlin.com.intellij.openapi.module.Module
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.StandardFileSystems.JAR_PROTOCOL
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
+import org.jetbrains.kotlin.com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.kotlin.config.JvmTarget
 import org.jetbrains.kotlin.library.KLIB_FILE_EXTENSION
 import org.jetbrains.kotlin.platform.TargetPlatform
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
+import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import kotlin.io.path.absolutePathString
+
+private val logger = LoggerFactory.getLogger("KtLibraryModule")
 
 @OptIn(KaPlatformInterface::class)
 internal class KtLibraryModule(
@@ -86,6 +91,23 @@ internal class KtLibraryModule(
 
 		return notExtendedFiles
 			.flatMap { LibraryUtils.getAllVirtualFilesFromRoot(it, includeRoot = true) }
+	}
+
+	override val baseContentScope: GlobalSearchScope by lazy {
+		val virtualFileUrls = computeFiles(extended = true).map { it.url }.toSet()
+		object : GlobalSearchScope(project) {
+			override fun contains(p0: VirtualFile): Boolean {
+				return p0.url in virtualFileUrls
+			}
+
+			override fun isSearchInModuleContent(p0: Module): Boolean {
+				return false
+			}
+
+			override fun isSearchInLibraries(): Boolean {
+				return true
+			}
+		}
 	}
 
 	override val libraryName: String
