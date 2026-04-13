@@ -22,7 +22,6 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.JvmTypeAliasInfo
-import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
 import org.jetbrains.kotlin.analysis.api.KaContextParameterApi
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
@@ -61,6 +60,7 @@ import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.startOffset
 import org.jetbrains.kotlin.types.Variance
 import org.slf4j.LoggerFactory
+import kotlin.io.path.name
 
 private const val KT_COMPLETION_PLACEHOLDER = "KT_COMPLETION_PLACEHOLDER"
 
@@ -74,9 +74,9 @@ private val logger = LoggerFactory.getLogger("KotlinCompletions")
  * @return The completion result.
  */
 internal fun CompilationEnvironment.complete(params: CompletionParams): CompletionResult {
-	val managedFile = fileManager.getOpenFile(params.file)
-	if (managedFile == null) {
-		logger.warn("No managed file for {}", params.file)
+	val ktFile = ktSymbolIndex.getOpenedKtFile(params.file)
+	if (ktFile == null) {
+		logger.warn("File {} is not open", params.file)
 		return CompletionResult.EMPTY
 	}
 
@@ -96,9 +96,9 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 	}
 
 	val completionKtFile =
-		managedFile.createInMemoryFileWithContent(
-			psiFactory = parser,
-			content = textWithPlaceholder
+		parser.createFile(
+			fileName = params.file.name,
+			text = textWithPlaceholder
 		)
 
 	return try {
@@ -282,26 +282,21 @@ private suspend fun KaSession.collectUnimportedSymbols(
 
 	// Library symbols: JAR-based, use full SymbolVisibilityChecker
 	val visibilityChecker = env.symbolVisibilityChecker
-	if (visibilityChecker == null) {
-		logger.warn("No visibility checker found")
-		return
-	}
-
 	env.libraryIndex?.findByPrefix(ctx.partial)
-		?.collect { symbol ->
+		?.forEach { symbol ->
 			val isVisible = visibilityChecker.isVisible(
 				symbol = symbol,
 				useSiteModule = useSiteModule,
 				useSitePackage = currentPackage,
 			)
-			if (!isVisible) return@collect
+			if (!isVisible) return@forEach
 			buildUnimportedSymbolItem(symbol)?.let { to += it }
 		}
 
 	// Source symbols: project .kt files — skip private and same-package symbols
 	env.sourceIndex?.findByPrefix(ctx.partial)
-		?.collect { symbol ->
-			if (symbol.packageName == currentPackage) return@collect
+		?.forEach { symbol ->
+			if (symbol.packageName == currentPackage) return@forEach
 
 			val isVisible = visibilityChecker.isVisible(
 				symbol = symbol,
@@ -309,7 +304,7 @@ private suspend fun KaSession.collectUnimportedSymbols(
 				useSitePackage = currentPackage
 			)
 
-			if (!isVisible) return@collect
+			if (!isVisible) return@forEach
 
 			buildUnimportedSymbolItem(symbol)?.let { to += it }
 		}

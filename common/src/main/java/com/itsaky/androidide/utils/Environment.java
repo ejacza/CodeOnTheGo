@@ -25,6 +25,8 @@ import androidx.annotation.NonNull;
 import com.blankj.utilcode.util.FileUtils;
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.buildinfo.BuildInfo;
+import com.itsaky.androidide.javac.config.JavacConfigProvider;
+
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -187,6 +189,9 @@ public final class Environment {
 		KEYSTORE_PROPERTIES = new File(KEYSTORE_DIR, KEYSTORE_PROPERTIES_NAME);
 
 		NDK_DIR = new File(ANDROID_HOME, "ndk");
+
+		// required by Java and Kotlin LSP
+		System.setProperty(JavacConfigProvider.PROP_ANDROIDIDE_JAVA_HOME, JAVA_HOME.getAbsolutePath());
 
 		isInitialized.set(true);
 	}
