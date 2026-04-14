@@ -29,9 +29,7 @@ internal class ScanningWorker(
 	}
 
 	private suspend fun scan() {
-		val allModules = modules.asFlatSequence().toList()
-		val sourceFiles = allModules
-			.asSequence()
+		val sourceFiles = modules.asFlatSequence()
 			.filter { it.isSourceModule }
 			.flatMap { it.computeFiles(extended = true) }
 			.takeWhile { isRunning.get() }
@@ -51,13 +49,6 @@ internal class ScanningWorker(
 			.forEach { sourceFile ->
 				indexWorker.submitCommand(IndexCommand.IndexSourceFile(sourceFile))
 			}
-
-		allModules
-			.asSequence()
-			.filterNot { it.isSourceModule }
-			.flatMap { it.computeFiles(extended = false) }
-			.takeWhile { isRunning.get() }
-			.forEach { indexWorker.submitCommand(IndexCommand.IndexLibraryFile(it)) }
 
 		indexWorker.submitCommand(IndexCommand.IndexingComplete)
 	}

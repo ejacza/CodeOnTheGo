@@ -52,7 +52,6 @@ internal class KtSymbolIndex(
 		queue = workerQueue,
 		fileIndex = fileIndex,
 		sourceIndex = sourceIndex,
-		libraryIndex = libraryIndex,
 	)
 
 	private val scanningWorker = ScanningWorker(

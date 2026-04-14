@@ -1,24 +1,19 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
 import com.itsaky.androidide.lsp.kotlin.compiler.read
-import com.itsaky.androidide.lsp.kotlin.utils.toNioPathOrNull
-import org.appdevforall.codeonthego.indexing.jvm.CombinedJarScanner
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
-import org.jetbrains.kotlin.com.intellij.util.io.URLUtil.JAR_SEPARATOR
 import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
-import kotlin.io.path.pathString
 
 internal class IndexWorker(
 	private val project: Project,
 	private val queue: WorkerQueue<IndexCommand>,
 	private val fileIndex: KtFileMetadataIndex,
 	private val sourceIndex: JvmSymbolIndex,
-	private val libraryIndex: JvmSymbolIndex,
 ) {
 	companion object {
 		private val logger = LoggerFactory.getLogger(IndexWorker::class.java)
@@ -27,19 +22,9 @@ internal class IndexWorker(
 	suspend fun start() {
 		var scanCount = 0
 		var sourceIndexCount = 0
-		var libraryIndexCount = 0
 
 		while (true) {
 			when (val command = queue.take()) {
-				is IndexCommand.IndexLibraryFile -> {
-					var sourceId = command.vf.toNioPathOrNull()?.pathString ?: command.vf.path
-					if (sourceId.endsWith(JAR_SEPARATOR)) {
-						sourceId = sourceId.substringBeforeLast(JAR_SEPARATOR)
-					}
-					libraryIndex.indexSource(sourceId) { CombinedJarScanner.scan(rootVf = command.vf) }
-					libraryIndexCount++
-				}
-
 				is IndexCommand.IndexSourceFile -> {
 					if (command.vf.fileSystem.protocol != "file") {
 						logger.warn("Unknown source file protocol: {}", command.vf.path)
@@ -67,10 +52,9 @@ internal class IndexWorker(
 
 				IndexCommand.IndexingComplete -> {
 					logger.info(
-						"Indexing complete: scanned={}, sourceIndexCount={}, libraryIndexCount={}",
+						"Indexing complete: scanned={}, sourceIndexCount={}",
 						scanCount,
 						sourceIndexCount,
-						libraryIndexCount
 					)
 				}
 

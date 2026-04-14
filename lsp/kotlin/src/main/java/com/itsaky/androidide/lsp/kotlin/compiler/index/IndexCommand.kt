@@ -10,5 +10,4 @@ internal sealed interface IndexCommand {
 	data class ScanSourceFile(val vf: VirtualFile): IndexCommand
 	data class IndexModifiedFile(val ktFile: KtFile): IndexCommand
 	data class IndexSourceFile(val vf: VirtualFile): IndexCommand
-	data class IndexLibraryFile(val vf: VirtualFile): IndexCommand
 }
