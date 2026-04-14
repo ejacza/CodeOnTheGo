@@ -82,8 +82,6 @@ class KotlinLanguageServer : ILanguageServer {
 	private val scope =
 		CoroutineScope(SupervisorJob() + CoroutineName(KotlinLanguageServer::class.simpleName!!))
 	private var projectModel: KotlinProjectModel? = null
-	private val sourceIndex: JvmSymbolIndex? = null
-	private val fileIndex: KtFileMetadataIndex? = null
 	private var compiler: Compiler? = null
 	private var analyzeJob: Job? = null
 
@@ -96,7 +94,6 @@ class KotlinLanguageServer : ILanguageServer {
 		get() = _settings ?: KotlinServerSettings.getInstance().also { _settings = it }
 
 	companion object {
-
 		private val ANALYZE_DEBOUNCE_DELAY = 400.milliseconds
 
 		const val SERVER_ID = "ide.lsp.kotlin"

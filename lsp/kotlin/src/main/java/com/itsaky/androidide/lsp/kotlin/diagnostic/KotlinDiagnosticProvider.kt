@@ -43,8 +43,6 @@ private fun CompilationEnvironment.doAnalyze(file: Path): DiagnosticResult {
 		return DiagnosticResult.NO_UPDATE
 	}
 
-	logger.debug("Analyzing ktFile: {}", ktFile.text)
-
 	val diagnostics = project.read {
 		analyze(ktFile) {
 			ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)

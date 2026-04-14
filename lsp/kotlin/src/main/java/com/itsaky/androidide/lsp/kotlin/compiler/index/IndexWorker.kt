@@ -29,7 +29,6 @@ internal class IndexWorker(
 		while (true) {
 			when (val command = queue.take()) {
 				is IndexCommand.IndexLibraryFile -> {
-					logger.debug("index library: {}", command.vf.path)
 					libraryIndex.insertAll(CombinedJarScanner.scan(rootVf = command.vf))
 					libraryIndexCount++
 				}

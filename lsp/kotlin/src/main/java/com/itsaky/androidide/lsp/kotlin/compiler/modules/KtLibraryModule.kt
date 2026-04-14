@@ -93,14 +93,15 @@ internal class KtLibraryModule(
 			.flatMap { LibraryUtils.getAllVirtualFilesFromRoot(it, includeRoot = true) }
 	}
 
+	@OptIn(KaExperimentalApi::class)
 	override val baseContentScope: GlobalSearchScope by lazy {
 		val virtualFileUrls = computeFiles(extended = true).map { it.url }.toSet()
 		object : GlobalSearchScope(project) {
-			override fun contains(p0: VirtualFile): Boolean {
-				return p0.url in virtualFileUrls
+			override fun contains(vf: VirtualFile): Boolean {
+				return vf.url in virtualFileUrls
 			}
 
-			override fun isSearchInModuleContent(p0: Module): Boolean {
+			override fun isSearchInModuleContent(module: Module): Boolean {
 				return false
 			}
 

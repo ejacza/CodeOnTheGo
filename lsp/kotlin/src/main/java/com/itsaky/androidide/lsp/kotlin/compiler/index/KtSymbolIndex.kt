@@ -15,7 +15,6 @@ import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.checkerframework.checker.index.qual.NonNegative
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.psi.KtFile
 import java.nio.file.Path
@@ -112,13 +111,15 @@ internal class KtSymbolIndex(
 		openedFiles[path]?.also { return it }
 		ktFileCache.getIfPresent(path)?.also { return it }
 
-		val ktFile = project.read {
-			PsiManager.getInstance(project)
-				.findFile(vf) as KtFile
-		}
+		val ktFile = loadKtFile(vf)
 
 		ktFileCache.put(path, ktFile)
 		return ktFile
+	}
+
+	private fun loadKtFile(vf: VirtualFile): KtFile = project.read {
+		PsiManager.getInstance(project)
+			.findFile(vf) as KtFile
 	}
 
 	suspend fun close() {

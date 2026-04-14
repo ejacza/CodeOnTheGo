@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.kotlin.compiler.registrar
 
 import com.itsaky.androidide.lsp.kotlin.compiler.services.AnalysisPermissionOptions
 import com.itsaky.androidide.lsp.kotlin.compiler.services.AnnotationsResolverFactory
+import com.itsaky.androidide.lsp.kotlin.compiler.services.NoOpAsyncExecutionService
 import com.itsaky.androidide.lsp.kotlin.compiler.services.DeclarationProviderFactory
 import com.itsaky.androidide.lsp.kotlin.compiler.services.DeclarationProviderMerger
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ModificationTrackerFactory
@@ -11,6 +12,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.services.PackageProviderFactory
 import com.itsaky.androidide.lsp.kotlin.compiler.services.PackageProviderMerger
 import com.itsaky.androidide.lsp.kotlin.compiler.services.PlatformSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
+import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.platform.KotlinPlatformSettings
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
@@ -30,12 +32,22 @@ import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.Plugin
 import org.jetbrains.kotlin.analysis.decompiler.stub.file.ClsKotlinBinaryClassCache
 import org.jetbrains.kotlin.analysis.decompiler.stub.file.DummyFileAttributeService
 import org.jetbrains.kotlin.analysis.decompiler.stub.file.FileAttributeService
+import org.jetbrains.kotlin.asJava.finder.JavaElementFinder
+import org.jetbrains.kotlin.com.intellij.lang.ASTNode
 import org.jetbrains.kotlin.com.intellij.mock.MockApplication
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
+import org.jetbrains.kotlin.com.intellij.openapi.Disposable
+import org.jetbrains.kotlin.com.intellij.openapi.application.AsyncExecutionService
+import org.jetbrains.kotlin.com.intellij.psi.PsiElementFinder
+import org.jetbrains.kotlin.com.intellij.psi.PsiFile
+import org.jetbrains.kotlin.com.intellij.psi.PsiTreeChangeEvent
+import org.jetbrains.kotlin.com.intellij.psi.PsiTreeChangeListener
 import org.jetbrains.kotlin.com.intellij.psi.SmartPointerManager
 import org.jetbrains.kotlin.com.intellij.psi.SmartTypePointerManager
+import org.jetbrains.kotlin.com.intellij.psi.impl.PsiElementFinderImpl
 import org.jetbrains.kotlin.com.intellij.psi.impl.smartPointers.SmartPointerManagerImpl
 import org.jetbrains.kotlin.com.intellij.psi.impl.smartPointers.SmartTypePointerManagerImpl
+import org.jetbrains.kotlin.com.intellij.psi.impl.source.codeStyle.IndentHelper
 
 @OptIn(KaImplementationDetail::class)
 internal object LspServiceRegistrar : AnalysisApiSimpleServiceRegistrar() {
@@ -52,6 +64,7 @@ internal object LspServiceRegistrar : AnalysisApiSimpleServiceRegistrar() {
 				AnalysisPermissionOptions::class.java
 			)
 			registerService(ClsKotlinBinaryClassCache::class.java)
+			registerService(AsyncExecutionService::class.java, NoOpAsyncExecutionService::class.java)
 		}
 	}
 
@@ -103,6 +116,15 @@ internal object LspServiceRegistrar : AnalysisApiSimpleServiceRegistrar() {
 				KotlinPackagePartProviderFactory::class.java,
 				PackagePartProviderFactory::class.java
 			)
+		}
+	}
+
+	@OptIn(KaExperimentalApi::class)
+	@Suppress("TestOnlyProblems")
+	override fun registerProjectModelServices(project: MockProject, disposable: Disposable) {
+		with(PsiElementFinder.EP.getPoint(project)) {
+			registerExtension(JavaElementFinder(project), disposable)
+			registerExtension(PsiElementFinderImpl(project), disposable)
 		}
 	}
 }

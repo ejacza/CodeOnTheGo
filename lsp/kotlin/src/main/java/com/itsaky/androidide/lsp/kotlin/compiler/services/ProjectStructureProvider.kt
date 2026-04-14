@@ -13,12 +13,33 @@ import org.jetbrains.kotlin.com.intellij.mock.MockProject
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
+import org.slf4j.LoggerFactory
 import java.nio.file.Paths
+import java.util.concurrent.ConcurrentHashMap
 
 internal class ProjectStructureProvider : KtLspService, KotlinProjectStructureProviderBase() {
 
+	companion object {
+		private val logger = LoggerFactory.getLogger(ProjectStructureProvider::class.java)
+	}
+
 	private lateinit var modules: List<KtModule>
 	private lateinit var project: Project
+
+	private val inMemoryVfToModule = ConcurrentHashMap<VirtualFile, KaModule>()
+	private val pathToInMemoryVf  = ConcurrentHashMap<String, VirtualFile>()
+
+	fun registerInMemoryFile(sourcePath: String, vf: VirtualFile) {
+		pathToInMemoryVf.remove(sourcePath)?.let { inMemoryVfToModule.remove(it) }
+
+		val module = findModuleForSourceId(sourcePath) ?: return
+		inMemoryVfToModule[vf] = module
+		pathToInMemoryVf[sourcePath] = vf
+	}
+
+	fun unregisterInMemoryFile(sourcePath: String) {
+		pathToInMemoryVf.remove(sourcePath)?.let { inMemoryVfToModule.remove(it) }
+	}
 
 	private val notUnderContentRootModuleWithoutPsiFile by lazy {
 		NotUnderContentRootModule(
@@ -43,12 +64,18 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 		useSiteModule: KaModule?
 	): KaModule {
 		val virtualFile = element.containingFile.virtualFile
+
+		inMemoryVfToModule[virtualFile]?.let { return it }
+
 		val visited = mutableSetOf<KaModule>()
 
 		modules.forEach { module ->
 			val foundModule = searchVirtualFileInModule(virtualFile, useSiteModule ?: module, visited)
 			if (foundModule != null) return foundModule
 		}
+
+		// fallback: path-based lookup
+		findModuleForSourceId(virtualFile.path)?.let { return it }
 
 		return NotUnderContentRootModule(
 			id = "unnamed-outside-content-root",

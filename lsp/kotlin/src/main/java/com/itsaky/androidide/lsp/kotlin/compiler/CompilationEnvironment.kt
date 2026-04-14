@@ -190,8 +190,6 @@ internal class CompilationEnvironment(
 	}
 
 	init {
-		System.setProperty("java.awt.headless", "true")
-		setupIdeaStandaloneExecution()
 
 		projectEnv = StandaloneProjectFactory
 			.createProjectEnvironment(
@@ -236,8 +234,8 @@ internal class CompilationEnvironment(
 		val libraryRoots = modules
 			.asFlatSequence()
 			.filterNot { it.isSourceModule }
-			.flatMap {
-				it.computeFiles(extended = true).map { JavaRoot(it, JavaRoot.RootType.BINARY) }
+			.flatMap { libMod ->
+				libMod.computeFiles(extended = false).map { file -> JavaRoot(file, JavaRoot.RootType.BINARY) }
 			}
 			.toList()
 
@@ -357,20 +355,22 @@ internal class CompilationEnvironment(
 
 	fun onFileClosed(path: Path) {
 		ktSymbolIndex.closeKtFile(path)
+		(project.getService(KotlinProjectStructureProvider::class.java) as ProjectStructureProvider)
+			.unregisterInMemoryFile(path.pathString)
 	}
 
 	fun onFileContentChanged(path: Path) {
-		val ktFile = ktSymbolIndex.getOpenedKtFile(path) ?: return
-		val doc = project.read { psiDocumentManager.getDocument(ktFile) } ?: return
-		project.write {
-			commandProcessor.executeCommand(project, {
-				doc.setText(FileManager.getDocumentContents(path))
-				psiDocumentManager.commitDocument(doc)
-				ktFile.onContentReload()
-			}, "onChangeFile", null)
+		val newContent = FileManager.getDocumentContents(path)
+		val newKtFile = project.read { parser.createFile(path.pathString, newContent) }
 
+		// Tell ProjectStructureProvider which module owns this LightVirtualFile.
+		val provider = project.getService(KotlinProjectStructureProvider::class.java) as ProjectStructureProvider
+		provider.registerInMemoryFile(path.pathString, newKtFile.virtualFile)
+
+		ktSymbolIndex.openKtFile(path, newKtFile)
+		project.write {
 			KaSourceModificationService.getInstance(project)
-				.handleElementModification(ktFile, KaElementModificationType.Unknown)
+				.handleElementModification(newKtFile, KaElementModificationType.Unknown)
 		}
 	}
 

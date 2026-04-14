@@ -40,11 +40,6 @@ class IndexingServiceManager(
 	 * @throws IllegalStateException if called after initialization.
 	 */
 	fun register(service: IndexingService) {
-		check(!initialized) {
-			"Cannot register services after initialization. " +
-					"Register all services before the first onProjectSynced call."
-		}
-
 		if (services.putIfAbsent(service.id, service) != null) {
 			log.warn("Attempt to re-register service with ID: {}", service.id)
 			return

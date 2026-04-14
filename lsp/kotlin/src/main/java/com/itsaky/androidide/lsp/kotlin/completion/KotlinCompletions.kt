@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.kotlin.completion
 
 import com.itsaky.androidide.lsp.api.describeSnippet
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.ContextKeywords
 import com.itsaky.androidide.lsp.kotlin.utils.ModifierFilter
@@ -49,6 +50,7 @@ import org.jetbrains.kotlin.analysis.api.symbols.name
 import org.jetbrains.kotlin.analysis.api.symbols.receiverType
 import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaType
+import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
@@ -95,49 +97,54 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 		append(originalText, completionOffset, originalText.length)
 	}
 
-	val completionKtFile =
+	val completionKtFile = project.read {
 		parser.createFile(
 			fileName = params.file.name,
 			text = textWithPlaceholder
-		)
+		).apply {
+			originalFile = ktFile
+		}
+	}
 
 	return try {
-		analyzeCopy(
-			useSiteElement = completionKtFile,
-			resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
-		) {
-			val ctx =
-				resolveAnalysisContext(
-					env = this@complete,
-					file = params.file,
-					ktFile = completionKtFile,
-					offset = completionOffset,
-					partial = partial
-				)
+		project.read {
+			analyzeCopy(
+				useSiteElement = completionKtFile,
+				resolutionMode = KaDanglingFileResolutionMode.PREFER_SELF,
+			) {
+				val ctx =
+					resolveAnalysisContext(
+						env = this@complete,
+						file = params.file,
+						ktFile = completionKtFile,
+						offset = completionOffset,
+						partial = partial
+					)
 
-			if (ctx == null) {
-				logger.error(
-					"Unable to determine context at offset {} in file {}",
-					completionOffset,
-					params.file
-				)
-				return@analyzeCopy CompletionResult.EMPTY
-			}
+				if (ctx == null) {
+					logger.error(
+						"Unable to determine context at offset {} in file {}",
+						completionOffset,
+						params.file
+					)
+					return@analyzeCopy CompletionResult.EMPTY
+				}
 
-			context(ctx) {
-				runBlocking {
-					val items = mutableListOf<CompletionItem>()
-					val completionContext = determineCompletionContext(ctx.psiElement)
-					when (completionContext) {
-						CompletionContext.Scope ->
-							collectScopeCompletions(to = items)
+				context(ctx) {
+					runBlocking {
+						val items = mutableListOf<CompletionItem>()
+						val completionContext = determineCompletionContext(ctx.psiElement)
+						when (completionContext) {
+							CompletionContext.Scope ->
+								collectScopeCompletions(to = items)
 
-						CompletionContext.Member ->
-							collectMemberCompletions(to = items)
+							CompletionContext.Member ->
+								collectMemberCompletions(to = items)
+						}
+
+						collectKeywordCompletions(to = items)
+						CompletionResult(items)
 					}
-
-					collectKeywordCompletions(to = items)
-					CompletionResult(items)
 				}
 			}
 		}
@@ -146,7 +153,7 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 			throw e
 		}
 
-		logger.warn("An error occurred while computing completions for {}", params.file)
+		logger.warn("An error occurred while computing completions for {}", params.file, e)
 		return CompletionResult.EMPTY
 	}
 }
@@ -324,9 +331,10 @@ private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionIt
 			val receiverClassId = internalNameToClassId(receiverTypeName)
 			val receiverType = findClass(receiverClassId)
 			if (receiverType != null) {
-				val satisfiesImplicitReceivers = ctx.scopeContext.implicitReceivers.any { receiver ->
-					receiver.type.isSubtypeOf(receiverType)
-				}
+				val satisfiesImplicitReceivers =
+					ctx.scopeContext.implicitReceivers.any { receiver ->
+						receiver.type.isSubtypeOf(receiverType)
+					}
 				// the extension property/function's receiver type
 				// is not available in current context, so ignore this sym
 				if (!satisfiesImplicitReceivers) return null
