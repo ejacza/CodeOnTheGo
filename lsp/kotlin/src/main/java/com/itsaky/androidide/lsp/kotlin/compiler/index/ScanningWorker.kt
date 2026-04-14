@@ -3,10 +3,12 @@ package com.itsaky.androidide.lsp.kotlin.compiler.index
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isSourceModule
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class ScanningWorker(
+	private val sourceIndex: JvmSymbolIndex,
 	private val indexWorker: IndexWorker,
 	private val modules: List<KtModule>,
 ) {
@@ -34,6 +36,8 @@ internal class ScanningWorker(
 			.flatMap { it.computeFiles(extended = true) }
 			.takeWhile { isRunning.get() }
 			.toList()
+
+		sourceIndex.setActiveSources(sourceFiles.asSequence().map { it.path }.toSet())
 
 		for (sourceFile in sourceFiles) {
 			if (!isRunning.get()) return

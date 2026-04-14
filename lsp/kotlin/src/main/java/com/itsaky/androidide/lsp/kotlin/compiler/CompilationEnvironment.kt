@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.kotlin.compiler
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isSourceModule
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.LspServiceRegistrar
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAccessibilityChecker
@@ -45,8 +46,6 @@ import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironment
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreApplicationEnvironmentMode
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreProjectEnvironment
-import org.jetbrains.kotlin.cli.jvm.compiler.setupHighestLanguageLevel
-import org.jetbrains.kotlin.cli.jvm.compiler.setupIdeaStandaloneExecution
 import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.cli.jvm.index.JvmDependenciesDynamicCompoundIndex
 import org.jetbrains.kotlin.cli.jvm.index.JvmDependenciesIndexImpl
@@ -362,6 +361,7 @@ internal class CompilationEnvironment(
 	fun onFileContentChanged(path: Path) {
 		val newContent = FileManager.getDocumentContents(path)
 		val newKtFile = project.read { parser.createFile(path.pathString, newContent) }
+		newKtFile.backingFilePath = path
 
 		// Tell ProjectStructureProvider which module owns this LightVirtualFile.
 		val provider = project.getService(KotlinProjectStructureProvider::class.java) as ProjectStructureProvider

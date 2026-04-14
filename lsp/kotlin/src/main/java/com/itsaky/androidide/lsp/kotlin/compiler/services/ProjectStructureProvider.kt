@@ -3,19 +3,23 @@ package com.itsaky.androidide.lsp.kotlin.compiler.services
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.NotUnderContentRootModule
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaPlatformInterface
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinProjectStructureProviderBase
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaModule
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaNotUnderContentRootModule
+import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
 import java.nio.file.Paths
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.io.path.pathString
 
 internal class ProjectStructureProvider : KtLspService, KotlinProjectStructureProviderBase() {
 
@@ -27,7 +31,7 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 	private lateinit var project: Project
 
 	private val inMemoryVfToModule = ConcurrentHashMap<VirtualFile, KaModule>()
-	private val pathToInMemoryVf  = ConcurrentHashMap<String, VirtualFile>()
+	private val pathToInMemoryVf = ConcurrentHashMap<String, VirtualFile>()
 
 	fun registerInMemoryFile(sourcePath: String, vf: VirtualFile) {
 		pathToInMemoryVf.remove(sourcePath)?.let { inMemoryVfToModule.remove(it) }
@@ -63,18 +67,38 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 		element: PsiElement,
 		useSiteModule: KaModule?
 	): KaModule {
-		val virtualFile = element.containingFile.virtualFile
+		val virtualFile = element.containingFile?.virtualFile
+			?: return notUnderContentRootModuleWithoutPsiFile
 
+		// Fast path: in-memory file registered by onFileContentChanged.
 		inMemoryVfToModule[virtualFile]?.let { return it }
 
 		val visited = mutableSetOf<KaModule>()
 
-		modules.forEach { module ->
-			val foundModule = searchVirtualFileInModule(virtualFile, useSiteModule ?: module, visited)
-			if (foundModule != null) return foundModule
+		val backingFilePath = (element.containingFile as? KtFile)?.let {
+			it.backingFilePath ?: it.originalKtFile?.backingFilePath
 		}
 
-		// fallback: path-based lookup
+		if (backingFilePath != null) {
+			findModuleForSourceId(backingFilePath.pathString)?.let { return it }
+		}
+
+		// If the caller supplies a use-site module, search its dependency tree first.
+		// This covers the common case (element is in the same module or one of its direct
+		// library dependencies) without scanning every top-level module.
+		if (useSiteModule != null) {
+			searchVirtualFileInModule(virtualFile, useSiteModule, visited)?.let { return it }
+		}
+
+		// Full scan: search every top-level module and their transitive dependencies.
+		// The shared `visited` set avoids re-visiting what we already searched above,
+		// but still reaches modules that are NOT in useSiteModule's dependency tree
+		// (e.g. a library module that is a sibling of useSiteModule, not a child of it).
+		modules.forEach { module ->
+			searchVirtualFileInModule(virtualFile, module, visited)?.let { return it }
+		}
+
+		// Path-based fallback for in-memory LightVirtualFiles created by onFileContentChanged.
 		findModuleForSourceId(virtualFile.path)?.let { return it }
 
 		return NotUnderContentRootModule(
@@ -124,7 +148,11 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 		return notUnderContentRootModuleWithoutPsiFile
 	}
 
-	private fun searchVirtualFileInModule(vf: VirtualFile, module: KaModule, visited: MutableSet<KaModule>): KaModule? {
+	private fun searchVirtualFileInModule(
+		vf: VirtualFile,
+		module: KaModule,
+		visited: MutableSet<KaModule>
+	): KaModule? {
 		if (visited.contains(module)) return null
 		if (module.contentScope.contains(vf)) return module
 

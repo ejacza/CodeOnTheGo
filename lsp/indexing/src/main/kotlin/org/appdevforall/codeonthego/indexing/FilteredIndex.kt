@@ -79,7 +79,8 @@ open class FilteredIndex<T : Indexable>(
 		if (query.sourceId != null && query.sourceId !in activeSources) {
 			return emptySequence()
 		}
-		return backing.query(query).filter { it.sourceId in activeSources }
+		val original = backing.query(query)
+		return original.filter { it.sourceId in activeSources }
 	}
 
 	override suspend fun get(key: String): T? {

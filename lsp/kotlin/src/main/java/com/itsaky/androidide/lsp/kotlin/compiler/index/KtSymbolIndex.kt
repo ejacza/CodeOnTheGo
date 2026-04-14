@@ -56,6 +56,7 @@ internal class KtSymbolIndex(
 	)
 
 	private val scanningWorker = ScanningWorker(
+		sourceIndex = sourceIndex,
 		indexWorker = indexWorker,
 		modules = modules,
 	)

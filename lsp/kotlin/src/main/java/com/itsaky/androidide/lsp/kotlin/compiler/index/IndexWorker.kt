@@ -1,14 +1,17 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
 import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.lsp.kotlin.utils.toNioPathOrNull
 import org.appdevforall.codeonthego.indexing.jvm.CombinedJarScanner
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
+import org.jetbrains.kotlin.com.intellij.util.io.URLUtil.JAR_SEPARATOR
 import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
+import kotlin.io.path.pathString
 
 internal class IndexWorker(
 	private val project: Project,
@@ -29,7 +32,11 @@ internal class IndexWorker(
 		while (true) {
 			when (val command = queue.take()) {
 				is IndexCommand.IndexLibraryFile -> {
-					libraryIndex.indexSource(command.vf.path) { CombinedJarScanner.scan(rootVf = command.vf) }
+					var sourceId = command.vf.toNioPathOrNull()?.pathString ?: command.vf.path
+					if (sourceId.endsWith(JAR_SEPARATOR)) {
+						sourceId = sourceId.substringBeforeLast(JAR_SEPARATOR)
+					}
+					libraryIndex.indexSource(sourceId) { CombinedJarScanner.scan(rootVf = command.vf) }
 					libraryIndexCount++
 				}
 

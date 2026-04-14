@@ -103,6 +103,7 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 			text = textWithPlaceholder
 		).apply {
 			originalFile = ktFile
+			originalKtFile = ktFile
 		}
 	}
 
@@ -131,20 +132,18 @@ internal fun CompilationEnvironment.complete(params: CompletionParams): Completi
 				}
 
 				context(ctx) {
-					runBlocking {
-						val items = mutableListOf<CompletionItem>()
-						val completionContext = determineCompletionContext(ctx.psiElement)
-						when (completionContext) {
-							CompletionContext.Scope ->
-								collectScopeCompletions(to = items)
+					val items = mutableListOf<CompletionItem>()
+					val completionContext = determineCompletionContext(ctx.psiElement)
+					when (completionContext) {
+						CompletionContext.Scope ->
+							collectScopeCompletions(to = items)
 
-							CompletionContext.Member ->
-								collectMemberCompletions(to = items)
-						}
-
-						collectKeywordCompletions(to = items)
-						CompletionResult(items)
+						CompletionContext.Member ->
+							collectMemberCompletions(to = items)
 					}
+
+					collectKeywordCompletions(to = items)
+					CompletionResult(items)
 				}
 			}
 		}
@@ -244,7 +243,7 @@ private fun KaSession.collectExtensionFunctions(
 }
 
 context(env: CompilationEnvironment, ctx: AnalysisContext)
-private suspend fun KaSession.collectScopeCompletions(
+private fun KaSession.collectScopeCompletions(
 	to: MutableList<CompletionItem>,
 ) {
 	val ktElement = ctx.ktElement
@@ -281,7 +280,7 @@ private suspend fun KaSession.collectScopeCompletions(
 }
 
 context(env: CompilationEnvironment, ctx: AnalysisContext)
-private suspend fun KaSession.collectUnimportedSymbols(
+private fun KaSession.collectUnimportedSymbols(
 	to: MutableList<CompletionItem>
 ) {
 	val currentPackage = ctx.ktElement.containingKtFile.packageDirective?.name
@@ -289,7 +288,7 @@ private suspend fun KaSession.collectUnimportedSymbols(
 
 	// Library symbols: JAR-based, use full SymbolVisibilityChecker
 	val visibilityChecker = env.symbolVisibilityChecker
-	env.libraryIndex?.findByPrefix(ctx.partial)
+	env.libraryIndex?.findByPrefix(ctx.partial, limit = 0)
 		?.forEach { symbol ->
 			val isVisible = visibilityChecker.isVisible(
 				symbol = symbol,
@@ -301,7 +300,7 @@ private suspend fun KaSession.collectUnimportedSymbols(
 		}
 
 	// Source symbols: project .kt files — skip private and same-package symbols
-	env.sourceIndex?.findByPrefix(ctx.partial)
+	env.sourceIndex?.findByPrefix(ctx.partial, limit = 0)
 		?.forEach { symbol ->
 			if (symbol.packageName == currentPackage) return@forEach
 

@@ -5,11 +5,16 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaModule
 import org.jetbrains.kotlin.analysis.api.projectStructure.allDirectDependencies
+import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
 internal class SymbolVisibilityChecker(
 	private val structureProvider: ProjectStructureProvider,
 ) {
+	companion object {
+		private val logger = LoggerFactory.getLogger(SymbolVisibilityChecker::class.java)
+	}
+
 	// visibility check cache, for memoization
 	// useSiteModule -> list of modules visible from useSiteModule
 	private val moduleVisibilityCache = ConcurrentHashMap<KaModule, List<KaModule>>()
