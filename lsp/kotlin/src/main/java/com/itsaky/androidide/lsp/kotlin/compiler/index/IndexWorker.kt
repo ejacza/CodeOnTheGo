@@ -29,7 +29,7 @@ internal class IndexWorker(
 		while (true) {
 			when (val command = queue.take()) {
 				is IndexCommand.IndexLibraryFile -> {
-					libraryIndex.insertAll(CombinedJarScanner.scan(rootVf = command.vf))
+					libraryIndex.indexSource(command.vf.path) { CombinedJarScanner.scan(rootVf = command.vf) }
 					libraryIndexCount++
 				}
 
@@ -68,7 +68,9 @@ internal class IndexWorker(
 				}
 
 				is IndexCommand.ScanSourceFile -> {
-					val ktFile = project.read { PsiManager.getInstance(project).findFile(command.vf) as? KtFile }
+					val ktFile = project.read {
+						PsiManager.getInstance(project).findFile(command.vf) as? KtFile
+					}
 						?: continue
 
 					val newFile = ktFile.toMetadata(project, isIndexed = false)

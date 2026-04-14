@@ -129,7 +129,8 @@ object KotlinMetadataScanner {
 	}
 
 	private fun extractFromClass(
-		klass: KmClass, sourceId: String,
+		klass: KmClass,
+		sourceId: String,
 	): List<JvmSymbol> {
 		val symbols = mutableListOf<JvmSymbol>()
 		val className = klass.name
