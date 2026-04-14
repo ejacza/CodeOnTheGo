@@ -55,6 +55,7 @@ import org.jetbrains.kotlin.cli.jvm.modules.CliJavaModuleResolver
 import org.jetbrains.kotlin.cli.jvm.modules.JavaModuleGraph
 import org.jetbrains.kotlin.com.intellij.core.CoreApplicationEnvironment
 import org.jetbrains.kotlin.com.intellij.core.CorePackageIndex
+import org.jetbrains.kotlin.com.intellij.ide.highlighter.JavaFileType
 import org.jetbrains.kotlin.com.intellij.mock.MockApplication
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
 import org.jetbrains.kotlin.com.intellij.openapi.command.CommandProcessor
@@ -86,6 +87,8 @@ import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
+import kotlin.io.path.extension
+import kotlin.io.path.isDirectory
 import kotlin.io.path.pathString
 
 /**
@@ -237,7 +240,8 @@ internal class CompilationEnvironment(
 			.asFlatSequence()
 			.filterNot { it.isSourceModule }
 			.flatMap { libMod ->
-				libMod.computeFiles(extended = false).map { file -> JavaRoot(file, JavaRoot.RootType.BINARY) }
+				libMod.computeFiles(extended = false)
+					.map { file -> JavaRoot(file, JavaRoot.RootType.BINARY) }
 			}
 			.toList()
 
@@ -257,14 +261,21 @@ internal class CompilationEnvironment(
 			addRoots(libraryRoots, MessageCollector.NONE)
 		}
 
+		val (javaRoots, singleJavaFileRoots) = modules
+			.asFlatSequence()
+			.filter { it.isSourceModule }
+			.flatMap { it.contentRoots }
+			.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(it) }
+			.partition { it.isDirectory || it.extension != JavaFileType.DEFAULT_EXTENSION }
+
 		val rootsIndex =
-			JvmDependenciesDynamicCompoundIndex(shouldOnlyFindFirstClass = false).apply {
+			JvmDependenciesDynamicCompoundIndex(shouldOnlyFindFirstClass = true).apply {
 				addIndex(
 					JvmDependenciesIndexImpl(
-						libraryRoots,
-						shouldOnlyFindFirstClass = false
+						libraryRoots + javaRoots.map { JavaRoot(it, JavaRoot.RootType.SOURCE) },
+						shouldOnlyFindFirstClass = true
 					)
-				)  // TODO Should receive all (sources + libraries)
+				)
 
 				indexedRoots.forEach { javaRoot ->
 					if (javaRoot.file.isDirectory) {
@@ -281,7 +292,12 @@ internal class CompilationEnvironment(
 		javaFileManager.initialize(
 			index = rootsIndex,
 			packagePartProviders = listOf(packagePartProvider),
-			singleJavaFileRootsIndex = SingleJavaFileRootsIndex(emptyList()),
+			singleJavaFileRootsIndex = SingleJavaFileRootsIndex(singleJavaFileRoots.map {
+				JavaRoot(
+					it,
+					JavaRoot.RootType.SOURCE
+				)
+			}),
 			usePsiClassFilesReading = true,
 			perfManager = null,
 		)
@@ -367,7 +383,8 @@ internal class CompilationEnvironment(
 		newKtFile.backingFilePath = path
 
 		// Tell ProjectStructureProvider which module owns this LightVirtualFile.
-		val provider = project.getService(KotlinProjectStructureProvider::class.java) as ProjectStructureProvider
+		val provider =
+			project.getService(KotlinProjectStructureProvider::class.java) as ProjectStructureProvider
 		provider.registerInMemoryFile(path.pathString, newKtFile.virtualFile)
 
 		ktSymbolIndex.openKtFile(path, newKtFile)
