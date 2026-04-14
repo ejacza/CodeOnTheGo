@@ -74,6 +74,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.jvm.JvmGeneratedIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -122,6 +123,9 @@ class JavaLanguageServer : ILanguageServer {
 		val projectManager = ProjectManagerImpl.getInstance()
 		projectManager.indexingServiceManager.register(
 			service = JvmLibraryIndexingService(context = BaseApplication.baseInstance)
+		)
+		projectManager.indexingServiceManager.register(
+			service = JvmGeneratedIndexingService(context = BaseApplication.baseInstance)
 		)
 
 		JavaSnippetRepository.init()

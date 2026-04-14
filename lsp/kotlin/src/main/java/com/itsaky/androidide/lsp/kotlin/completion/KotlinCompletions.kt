@@ -314,6 +314,13 @@ private fun KaSession.collectUnimportedSymbols(
 
 			buildUnimportedSymbolItem(symbol)?.let { to += it }
 		}
+
+	// Generated symbols: R.jar etc. — all public by construction, no visibility check needed.
+	env.generatedIndex?.findByPrefix(ctx.partial, limit = 0)
+		?.forEach { symbol ->
+			if (symbol.packageName == currentPackage) return@forEach
+			buildUnimportedSymbolItem(symbol)?.let { to += it }
+		}
 }
 
 context(ctx: AnalysisContext)

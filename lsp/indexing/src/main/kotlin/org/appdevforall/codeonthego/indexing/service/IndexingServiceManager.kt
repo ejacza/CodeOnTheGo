@@ -69,11 +69,25 @@ class IndexingServiceManager(
 
 	/**
 	 * Called after a build completes.
+	 *
+	 * Forwards the event to all registered services concurrently.
+	 * Failures in one service don't affect others (SupervisorJob).
 	 */
 	fun onBuildCompleted() {
 		if (!initialized) {
 			log.warn("onBuildCompleted called before initialization, ignoring")
 			return
+		}
+		scope.launch {
+			services.values.forEach { service ->
+				launch {
+					try {
+						service.onBuildCompleted()
+					} catch (e: Exception) {
+						log.error("Service '{}' failed in onBuildCompleted", service.id, e)
+					}
+				}
+			}
 		}
 	}
 

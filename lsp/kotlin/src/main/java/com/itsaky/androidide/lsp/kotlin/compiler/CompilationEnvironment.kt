@@ -148,6 +148,9 @@ internal class CompilationEnvironment(
 	val requireFileIndex: KtFileMetadataIndex
 		get() = checkNotNull(fileIndex)
 
+	val generatedIndex: JvmSymbolIndex?
+		get() = ktProject.generatedIndex
+
 	val symbolVisibilityChecker: SymbolVisibilityChecker by lazy {
 		val provider =
 			project.getService(KotlinProjectStructureProvider::class.java) as ProjectStructureProvider
