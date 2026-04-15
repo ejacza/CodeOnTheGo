@@ -58,4 +58,5 @@ dependencies {
 	compileOnly(projects.common)
 
 	testImplementation(projects.testing.lsp)
+	testImplementation(libs.tests.kotlinx.coroutines)
 }
