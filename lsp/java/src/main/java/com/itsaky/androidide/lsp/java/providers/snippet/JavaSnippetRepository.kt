@@ -27,10 +27,10 @@ import com.itsaky.androidide.lsp.snippets.SnippetParser
  */
 object JavaSnippetRepository {
 
-  lateinit var snippets: Map<JavaSnippetScope, List<ISnippet>>
-    private set
+	lateinit var snippets: Map<JavaSnippetScope, List<ISnippet>>
+		private set
 
-  fun init() {
-    this.snippets = SnippetParser.parse("java", JavaSnippetScope.values())
-  }
+	fun init() {
+		this.snippets = SnippetParser.parse("java", JavaSnippetScope.entries)
+	}
 }
