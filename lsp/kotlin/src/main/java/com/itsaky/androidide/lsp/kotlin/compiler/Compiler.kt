@@ -39,6 +39,7 @@ internal class Compiler(
 	init {
 		defaultCompilationEnv = CompilationEnvironment(
 			name = "default",
+			kind = CompilationKind.Default,
 			workspace = workspace,
 			ktProject = projectModel,
 			intellijPluginRoot = intellijPluginRoot,
@@ -53,14 +54,19 @@ internal class Compiler(
 			VirtualFileManager.getInstance().getFileSystem(StandardFileSystems.FILE_PROTOCOL)
 	}
 
+	fun refreshSources() {
+		defaultCompilationEnv.refreshSources()
+	}
+
 	fun updateLanguageClient(client: ILanguageClient?) {
 		defaultCompilationEnv.languageClient = client
 		// TODO: update client for script env once we have one
 	}
 
 	fun compilationKindFor(file: Path): CompilationKind {
-		// TODO: This should return a different environment for Kotlin script files
-		return CompilationKind.Default
+		if (CompilationKind.Default.acceptsFile(file)) return CompilationKind.Default
+		if (CompilationKind.Script.acceptsFile(file)) return CompilationKind.Script
+		throw IllegalStateException("Cannot get compilation kind for file: ${file.pathString}. It may not be supported.")
 	}
 
 	fun compilationEnvironmentFor(file: Path): CompilationEnvironment? {

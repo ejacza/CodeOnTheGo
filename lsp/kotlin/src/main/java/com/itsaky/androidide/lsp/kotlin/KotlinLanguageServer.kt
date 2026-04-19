@@ -19,10 +19,14 @@ package com.itsaky.androidide.lsp.kotlin
 
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
+import com.itsaky.androidide.eventbus.events.BuildCompletedEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
+import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
+import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
+import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
@@ -55,6 +59,7 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
@@ -311,5 +316,85 @@ class KotlinLanguageServer : ILanguageServer {
 
 		compiler?.compilationEnvironmentFor(event.savedFile)
 			?.onFileSaved(event.savedFile)
+	}
+
+	@Subscribe
+	@Suppress("unused")
+	fun onBuildCompleted(event: BuildCompletedEvent) {
+		compiler?.refreshSources()
+	}
+
+	@Subscribe
+	@Suppress("unused")
+	fun onFileCreated(event: FileCreationEvent) {
+		val path = event.file.toPath()
+		if (!DocumentUtils.isKotlinFile(path)) {
+			return
+		}
+
+		scope.launch {
+			compiler?.compilationEnvironmentFor(path)
+				?.ktSymbolIndex
+				?.submitForIndexing(path)
+		}
+	}
+
+	@Subscribe
+	@Suppress("unused")
+	fun onFileDeleted(event: FileDeletionEvent) {
+		val path = event.file.toPath()
+		if (!DocumentUtils.isKotlinFile(path)) {
+			return
+		}
+
+		scope.launch {
+			compiler?.compilationEnvironmentFor(path)
+				?.ktSymbolIndex
+				?.removeFromIndex(path)
+		}
+	}
+
+	@Subscribe
+	@Suppress("unused")
+	fun onFileRenamed(event: FileRenameEvent) {
+		val fromPath = event.file.toPath()
+		val toPath = event.newFile.toPath()
+
+		scope.launch {
+			val oldIsKotlinFile = DocumentUtils.isKotlinFile(fromPath)
+			val newIsKotlinFile = DocumentUtils.isKotlinFile(toPath)
+
+			if (!oldIsKotlinFile && newIsKotlinFile) {
+				// only the new file is a Kotlin file
+				// so just submit it for indexing
+				compiler?.compilationEnvironmentFor(toPath)
+					?.ktSymbolIndex
+					?.submitForIndexing(toPath)
+				return@launch
+			}
+
+			if (oldIsKotlinFile && !newIsKotlinFile) {
+				// only the old file was a Kotlin file
+				// so just remove it from the index
+				compiler?.compilationEnvironmentFor(fromPath)
+					?.ktSymbolIndex
+					?.removeFromIndex(fromPath)
+				return@launch
+			}
+
+			val fromEnv = compiler?.compilationEnvironmentFor(fromPath)
+			val toEnv = compiler?.compilationEnvironmentFor(toPath)
+			if (fromEnv == toEnv && toEnv != null) {
+				// file was renamed within the same compilation environment
+				toEnv.ktSymbolIndex.onFileMoved(fromPath, toPath)
+				return@launch
+			}
+
+			// file may have been moved from one compilation environment to another
+			// remove from old env's index
+			// and submit to the new env for indexing
+			fromEnv?.ktSymbolIndex?.removeFromIndex(fromPath)
+			toEnv?.ktSymbolIndex?.submitForIndexing(toPath)
+		}
 	}
 }

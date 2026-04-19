@@ -13,11 +13,11 @@ import com.itsaky.androidide.lsp.kotlin.compiler.services.KtLspService
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
 import com.itsaky.androidide.lsp.kotlin.compiler.services.latestLanguageVersionSettings
-import com.itsaky.androidide.utils.KeyedDebouncingAction
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.api.Workspace
+import com.itsaky.androidide.utils.KeyedDebouncingAction
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -110,6 +110,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(K1Deprecation::class)
 internal class CompilationEnvironment(
 	name: String,
+	val kind: CompilationKind,
 	workspace: Workspace,
 	val ktProject: KotlinProjectModel,
 	val intellijPluginRoot: Path,
@@ -179,6 +180,7 @@ internal class CompilationEnvironment(
 
 	val ktSymbolIndex by lazy {
 		KtSymbolIndex(
+			kind = kind,
 			project = project,
 			modules = modules,
 			fileIndex = requireFileIndex,
@@ -395,6 +397,12 @@ internal class CompilationEnvironment(
 
 			this.messageCollector = this@CompilationEnvironment.envMessageCollector
 		}
+	}
+
+	fun refreshSources() {
+		ktSymbolIndex.refreshSources()
+		// TODO: Should also update/notify Java file services about possibly changed Java files
+		//       But that's a bit problematic right now, scheduled for later
 	}
 
 	fun openFileIfNeeded(path: Path) {
