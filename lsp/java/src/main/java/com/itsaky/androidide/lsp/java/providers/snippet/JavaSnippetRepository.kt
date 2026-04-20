@@ -33,6 +33,6 @@ object JavaSnippetRepository {
 		}
 
 	fun init() {
-		SnippetRegistry.initBuiltIn("java", JavaSnippetScope.entries.toTypedArray())
+		SnippetRegistry.initBuiltIn("java", JavaSnippetScope.entries)
 	}
 }
