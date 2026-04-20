@@ -116,6 +116,14 @@ android {
 			signingConfig = signingConfigs.getByName("debug")
 			manifestPlaceholders["sentryDsn"] =
 				props.getProperty("sentryDsnDebug") ?: propOrEnv("SENTRY_DSN_DEBUG")
+
+			isMinifyEnabled = true
+			isShrinkResources = false
+			isDebuggable = false
+			proguardFiles(
+				getDefaultProguardFile("proguard-android-optimize.txt"),
+				"proguard-rules.pro",
+			)
 		}
 		release {
 			manifestPlaceholders["sentryDsn"] =
@@ -216,7 +224,9 @@ configurations.configureEach {
 }
 
 dependencies {
-	debugImplementation(libs.common.leakcanary)
+	// Temporarily disabled: LeakCanary rejects non-debuggable APKs, which we
+	// use to reproduce R8-only crashes in the debug variant.
+	// debugImplementation(libs.common.leakcanary)
 
 	// Annotation processors
 	kapt(libs.common.glide.ap)
