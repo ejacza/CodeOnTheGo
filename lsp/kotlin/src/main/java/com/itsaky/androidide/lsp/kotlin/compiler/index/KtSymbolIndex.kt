@@ -92,16 +92,28 @@ internal class KtSymbolIndex(
 	}
 
 	private fun startIndexing() {
-		indexingJob = scope.launch {
-			indexWorker.start()
-			indexingJob = null
+		val job = scope.launch {
+			try {
+				indexWorker.start()
+			} finally {
+				if (indexingJob === coroutineContext[Job]) {
+					indexingJob = null
+				}
+			}
 		}
+
+		indexingJob = job
 	}
 
 	private fun startScanning() {
 		scanningJob = scope.launch {
-			scanningWorker.scan()
-			scanningJob = null
+			try {
+				scanningWorker.scan()
+			} finally {
+				if (scanningJob === coroutineContext[Job]) {
+					scanningJob = null
+				}
+			}
 		}
 	}
 
@@ -114,7 +126,7 @@ internal class KtSymbolIndex(
 
 	private fun getVirtualFileOrWarn(path: Path): VirtualFile? {
 		return path.toVirtualFileOrNull() ?: run {
-			logger.warn("cannot submit {} for indexing. unable to find virtual file", path)
+			logger.warn("unable to find virtual file for path {}", path)
 			null
 		}
 	}
