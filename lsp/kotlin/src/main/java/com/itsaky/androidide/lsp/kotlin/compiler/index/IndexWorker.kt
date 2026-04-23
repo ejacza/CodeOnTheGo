@@ -62,7 +62,7 @@ internal class IndexWorker(
 		while (isActive) {
 			when (val cmd = queue.take()) {
 				is IndexCommand.RemoveFromIndex -> {
-					val filePath = cmd.vf.toNioPathOrNull()?.pathString ?: cmd.vf.path
+					val filePath = cmd.path.pathString
 					fileIndex.remove(filePath)
 					sourceIndex.removeBySource(filePath)
 				}
