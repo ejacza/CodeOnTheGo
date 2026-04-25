@@ -144,10 +144,11 @@ internal class KtSymbolIndex(
 	}
 
 	suspend fun onFileMoved(from: Path, to: Path) {
-		val toVf = getVirtualFileOrWarn(to) ?: return
+		// always remove the source file from index
+		indexWorker.submitCommand(IndexCommand.RemoveFromIndex(from))
 
+		val toVf = getVirtualFileOrWarn(to) ?: return
 		indexWorker.apply {
-			submitCommand(IndexCommand.RemoveFromIndex(from))
 			submitCommand(IndexCommand.ScanSourceFile(toVf))
 			submitCommand(IndexCommand.IndexSourceFile(toVf))
 		}
