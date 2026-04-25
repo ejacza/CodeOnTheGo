@@ -382,9 +382,12 @@ class KotlinLanguageServer : ILanguageServer {
 				return@launch
 			}
 
-			val fromEnv = compiler?.compilationEnvironmentFor(fromPath)
-			val toEnv = compiler?.compilationEnvironmentFor(toPath)
-			if (fromEnv == toEnv && toEnv != null) {
+			val fromKind = runCatching { compiler?.compilationKindFor(fromPath) }.getOrNull()
+			val toKind = runCatching { compiler?.compilationKindFor(toPath) }.getOrNull()
+			val fromEnv = fromKind?.let { compiler?.compilationEnvironmentFor(it) }
+			val toEnv = toKind?.let { compiler?.compilationEnvironmentFor(it) }
+
+			if (fromKind != null && fromEnv == toEnv && toEnv != null) {
 				// file was renamed within the same compilation environment
 				toEnv.ktSymbolIndex.onFileMoved(fromPath, toPath)
 				return@launch
