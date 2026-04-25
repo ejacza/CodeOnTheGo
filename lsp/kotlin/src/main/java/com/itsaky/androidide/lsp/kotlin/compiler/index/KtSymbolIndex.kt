@@ -10,7 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
@@ -18,9 +18,7 @@ import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.checkerframework.checker.index.qual.NonNegative
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
-import org.jetbrains.kotlin.fir.resolve.toArrayOfFactoryName
 import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -194,7 +192,7 @@ internal class KtSymbolIndex(
 	suspend fun close() {
 		indexWorker.submitCommand(IndexCommand.Stop)
 
-		scanningJob?.join()
+		scanningJob?.cancelAndJoin()
 		indexingJob?.join()
 	}
 }
