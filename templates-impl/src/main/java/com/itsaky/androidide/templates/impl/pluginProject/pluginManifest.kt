@@ -36,7 +36,7 @@ fun pluginAndroidManifest(data: PluginTemplateData): String {
             android:value="${data.author}" />
 
         <meta-data
-            android:name="plugin.min_ide_version"
+            android:name="plugin.min_plugin_api_version"
             android:value="${data.minIdeVersion}" />
 
         <!--

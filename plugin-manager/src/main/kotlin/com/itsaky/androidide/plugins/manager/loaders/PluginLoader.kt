@@ -240,8 +240,7 @@ class PluginLoader(
             val pluginDescription = metaData.getString("plugin.description") ?: ""
             val pluginAuthor = metaData.getString("plugin.author") ?: ""
             val pluginMainClass = metaData.getString("plugin.main_class") ?: return null
-            val pluginMinIdeVersion = metaData.getString("plugin.min_ide_version") ?: "1.0.0"
-            val pluginMaxIdeVersion = metaData.getString("plugin.max_ide_version")
+            val pluginMinPluginApiVersion = metaData.getString("plugin.min_plugin_api_version") ?: "1.0.0"
 
             // Parse permissions
             val permissions = metaData.getString("plugin.permissions")?.split(",")?.map { it.trim() } ?: emptyList()
@@ -262,8 +261,7 @@ class PluginLoader(
                 description = pluginDescription,
                 author = pluginAuthor,
                 mainClass = pluginMainClass,
-                minIdeVersion = pluginMinIdeVersion,
-                maxIdeVersion = pluginMaxIdeVersion,
+                minPluginApiVersion = pluginMinPluginApiVersion,
                 permissions = permissions,
                 dependencies = dependencies,
                 extensions = emptyList(),

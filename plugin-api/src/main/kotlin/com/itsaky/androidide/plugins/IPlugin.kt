@@ -18,7 +18,7 @@ data class PluginMetadata(
     val version: String,
     val description: String,
     val author: String,
-    val minIdeVersion: String,
+    val minPluginApiVersion: String,
     val permissions: List<String> = emptyList(),
     val dependencies: List<String> = emptyList(),
     val iconDayPath: String? = null,

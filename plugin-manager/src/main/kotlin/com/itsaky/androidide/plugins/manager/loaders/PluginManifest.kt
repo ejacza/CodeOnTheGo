@@ -27,12 +27,9 @@ data class PluginManifest(
     @SerializedName("main_class")
     val mainClass: String,
     
-    @SerializedName("min_ide_version")
-    val minIdeVersion: String,
-    
-    @SerializedName("max_ide_version")
-    val maxIdeVersion: String? = null,
-    
+    @SerializedName("min_plugin_api_version")
+    val minPluginApiVersion: String? = null,
+
     @SerializedName("permissions")
     val permissions: List<String> = emptyList(),
     
@@ -95,7 +92,7 @@ fun PluginManifest.toPluginMetadata() = PluginMetadata(
     version = version,
     description = description,
     author = author,
-    minIdeVersion = minIdeVersion,
+    minPluginApiVersion = minPluginApiVersion ?: "1.0.0",
     dependencies = dependencies,
     permissions = permissions
 )
