@@ -27,7 +27,9 @@ object ImageViewGrammar : WidgetGrammar {
         AttributeKey.HEIGHT.xmlName to DimensionValidator,
         AttributeKey.ID.xmlName to PassThroughValidator,
         AttributeKey.SRC.xmlName to PassThroughValidator,
-        AttributeKey.LAYOUT_GRAVITY.xmlName to CategoricalValidator(gravityValues)
+        AttributeKey.LAYOUT_GRAVITY.xmlName to CategoricalValidator(gravityValues),
+        AttributeKey.BACKGROUND.xmlName to PassThroughValidator,
+        AttributeKey.BACKGROUND_TINT.xmlName to PassThroughValidator
     )
 }
 
