@@ -133,7 +133,16 @@ jobs:
           echo "Downloading documentation.db from Google Drive..."
 
           mkdir -p assets
-          curl -sL -H "Authorization: Bearer $ACCESS_TOKEN" \
+          curl -i -L -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${DB_FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
+            -o assets/documentation.db || true
+
+          if [ ! -f assets/documentation.db ] || [ "$(stat -c%s assets/documentation.db)" -lt 10000 ]; then
+            echo "--- DEBUG: RESPONSE CONTENT ---"
+            cat assets/documentation.db | head -n 50
+            echo "
+--- END DEBUG ---"
+          fi
             "https://www.googleapis.com/drive/v3/files/${DB_FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
             -o assets/documentation.db
 
