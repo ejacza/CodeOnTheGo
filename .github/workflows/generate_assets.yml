@@ -55,6 +55,7 @@ jobs:
           access_token_scopes: 'https://www.googleapis.com/auth/drive'
 
       - name: Set up SSH key
+        if: vars.GREENGEEKS_SSH_HOST != 'none'
         env:
           GREENGEEKS_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
           GREENGEEKS_KEY: ${{ secrets.GREENGEEKS_SSH_PRIVATE_KEY }}
@@ -71,7 +72,7 @@ jobs:
           sed -i '' -e '$ { /^$/ d; }' ~/.ssh/id_rsa 2>/dev/null || sed -i '$ { /^$/ d; }' ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           # Verify key format
-          if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa; then
+          if [ "$GREENGEEKS_KEY" != "none" ] && ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa; then
             echo "Error: SSH key does not appear to be in correct format"
             exit 1
           fi
@@ -110,6 +111,7 @@ jobs:
           ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Download debug assets
+        if: vars.GREENGEEKS_SSH_HOST != 'none'
         run: |
           flox activate -d flox/base -- ./gradlew :app:assetsDownloadDebug --no-daemon \
             -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
