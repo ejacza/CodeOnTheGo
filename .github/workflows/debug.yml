@@ -32,7 +32,7 @@ env:
 jobs:
   check_changes:
     name: Check for meaningful changes
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       must_build: ${{ steps.check.outputs.must_build }}
     steps:
@@ -45,34 +45,25 @@ jobs:
       - name: Check if new branch with no meaningful commits
         id: check
         run: |
-          # Get the current branch name
           BRANCH_NAME=$(git branch --show-current)
-          echo "Current branch: $BRANCH_NAME"
-
-          # Check commit count for logging
           BRANCH_ONLY_COMMITS=$(git log --oneline origin/stage..HEAD 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-          echo "Commits ahead of stage: $BRANCH_ONLY_COMMITS"
 
-          # For non-stage branches, check if they are identical to stage
           if [[ "$BRANCH_NAME" != "stage" ]]; then
             DIFF_COUNT=$(git diff --name-only origin/stage..HEAD | wc -l | tr -d ' ' || echo "0")
-            echo "Files changed from stage: $DIFF_COUNT"
-            
+
             if [[ "$DIFF_COUNT" -eq 0 ]]; then
               echo "::notice::Skipping build for branch identical to stage"
               echo "must_build=false" >> $GITHUB_OUTPUT
             else
-              echo "Branch has changes, proceeding with build"
               echo "must_build=true" >> $GITHUB_OUTPUT
             fi
           else
-            echo "Stage branch detected, proceeding with build"
             echo "must_build=true" >> $GITHUB_OUTPUT
           fi
 
   build_apk:
     name: Build Universal APK
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: check_changes
     if: needs.check_changes.outputs.must_build == 'true'
@@ -96,39 +87,19 @@ jobs:
         run: |
           BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
           BRANCH_LENGTH=${#BRANCH_NAME}
-          echo "Branch name: $BRANCH_NAME"
-          echo "Branch name length: $BRANCH_LENGTH characters"
-          
+
           if [ $BRANCH_LENGTH -gt 80 ]; then
             echo "ERROR: Branch name exceeds the 80 character limit ($BRANCH_LENGTH characters)"
-            echo "This causes Google Cloud authentication to fail due to subject mapping limits."
-            echo "Please rename your branch to 80 characters or fewer and try again."
             exit 1
-          fi
-          
-          echo "Branch name length is valid ($BRANCH_LENGTH ≤ 80 characters)"
-
-      - name: Check if Nix is installed
-        id: check_nix
-        run: |
-          if command -v nix >/dev/null 2>&1; then
-            echo "nix is installed"
-            echo "nix_installed=true" >> $GITHUB_ENV
-          else
-            echo "nix is not installed"
-            echo "nix_installed=false" >> $GITHUB_ENV
           fi
 
       - name: Install Flox
-        if: env.nix_installed == 'false'
         uses: flox/install-flox-action@v2
 
       - name: Create google-services.json
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: |
-          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
-          echo "google-services.json created successfully"
+        run: echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
 
       - name: Assemble Universal APK
         run: |
@@ -146,7 +117,7 @@ jobs:
         run: |
           BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-          
+
           if [[ "${BRANCH_NAME,,}" == "stage" ]]; then
             BUILD_TYPE="STAGE"
           else
@@ -155,18 +126,15 @@ jobs:
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
 
       - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-    
+        run: sudo apt-get install -y jq
+
       - name: Get PR and Commit Information
         id: pr_info
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            EVENT_PATH="${GITHUB_EVENT_PATH}"
-            COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH" | tr -d '\n\r' | sed 's/[*]/•/g')
-            PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")
-            PR_URL=$(jq -r '.pull_request.html_url' "$EVENT_PATH")
+            COMMIT_MSG=$(jq -r '.pull_request.title' "$GITHUB_EVENT_PATH" | tr -d '\n\r' | sed 's/[*]/•/g')
+            PR_AUTHOR=$(jq -r '.pull_request.user.login' "$GITHUB_EVENT_PATH")
+            PR_URL=$(jq -r '.pull_request.html_url' "$GITHUB_EVENT_PATH")
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
             echo "PR_AUTHOR=$PR_AUTHOR" >> $GITHUB_OUTPUT
             echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
@@ -184,23 +152,20 @@ jobs:
         run: |
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
 
-          # If no Jira ticket found in branch name, check the commit message
           if [ -z "$JIRA_TICKET" ]; then
             JIRA_TICKET=$(echo "$COMMIT_MSG" | grep -o 'ADFA-[0-9]\+' | head -1)
           fi
 
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
-          
-            # Fetch Jira ticket title if credentials are available
+
             if [ -n "${{ secrets.JIRA_EMAIL }}" ] && [ -n "${{ secrets.JIRA_API_TOKEN }}" ]; then
               JIRA_TITLE=$(curl -s \
                 -u "${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
                 -H "Accept: application/json" \
                 "https://appdevforall.atlassian.net/rest/api/3/issue/${JIRA_TICKET}?fields=summary" \
                 | jq -r '.fields.summary // ""' 2>/dev/null || echo "")
-          
-              # If unable to fetch title, default to commit message
+
               if [ -z "$JIRA_TITLE" ]; then
                 JIRA_TITLE="$COMMIT_MSG"
               fi
@@ -231,6 +196,13 @@ jobs:
           fi
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
 
+      - name: Upload APK to GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-v8-debug-${{ env.BRANCH_NAME }}
+          path: ${{ steps.find_apk.outputs.APK_PATH }}
+          retention-days: 7
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
@@ -244,141 +216,6 @@ jobs:
           apk_size_bytes=$( /usr/bin/stat -c '%s' $APK_PATH )
           uv run --with psycopg[binary] scripts/insert-ci-perf-data.py $( basename $APK_PATH ) $GRADLE_START $GRADLE_END $apk_size_bytes
 
-      - name: Deploy to Firebase App Distribution
-        id: firebase_upload
-        env:
-          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          BUILD_TYPE: ${{ env.BUILD_TYPE }}
-          JIRA_TITLE: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
-          JIRA_URL: ${{ steps.extract_jira.outputs.JIRA_URL }}
-        run: |
-          echo "Starting Firebase deployment..."
-          echo "APK Path: $APK_PATH"
-          echo "Firebase App ID: $FIREBASE_APP_ID"
-          
-          # Check if Firebase CLI is authenticated
-          echo "Checking Firebase authentication..."
-          firebase projects:list || {
-            echo "ERROR: Firebase authentication failed"
-            exit 1
-          }
-
-          RELEASE_NOTES_FILE=$(mktemp)
-          cat > "$RELEASE_NOTES_FILE" << EOF
-          Build Type: $BUILD_TYPE
-          JIRA Title: $JIRA_TITLE
-          Ticket: $JIRA_URL
-          EOF
-          
-          echo "Running Firebase distribution command..."
-          set +e  # Disable exit on error temporarily
-          output=$(firebase appdistribution:distribute "$APK_PATH" \
-            --app "$FIREBASE_APP_ID" \
-            --groups "testers" \
-            --release-notes-file "$RELEASE_NOTES_FILE" 2>&1)
-          exit_code=$?
-          set -e  # Re-enable exit on error
-          
-          echo "Firebase command exit code: $exit_code"
-          echo "Firebase command output:"
-          echo "$output"
-          
-          if [ $exit_code -ne 0 ]; then
-            echo "ERROR: Firebase deployment failed with exit code $exit_code"
-            exit 1
-          fi
-
-          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
-
-          if [ -z "$FIREBASE_URL" ]; then
-            FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-          fi
-
-          echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
-
-      - name: Update Jira Fix Version
-        if: github.ref == 'refs/heads/stage'
-        env:
-          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
-          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          NEXT_RELEASE_VERSION: ${{ vars.NEXT_RELEASE_VERSION }}
-        run: |
-          # Try to get Jira ticket from extract_jira step output first (handles branch name and commit message)
-          JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
-          
-          # If extract_jira didn't find a ticket (returned "N/A"), try merge commit message
-          if [ "$JIRA_TICKET" == "N/A" ] || [ -z "$JIRA_TICKET" ]; then
-            MERGE_COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null || echo "")
-            JIRA_TICKET=$(echo "$MERGE_COMMIT_MSG" | grep -o 'ADFA-[0-9]\+' | head -1 || echo "")
-          fi
-          
-          if [ -z "$JIRA_TICKET" ] || [ "$JIRA_TICKET" == "N/A" ]; then
-            echo "ERROR: No Jira ticket found in branch name, commit message, or merge commit"
-            echo "Branch name or commit message must contain a Jira ticket in format ADFA-XXXX"
-            exit 1
-          fi
-          
-          echo "Found Jira ticket: $JIRA_TICKET"
-          
-          # Validate NEXT_RELEASE_VERSION exists and exactly two digits, dot, two digits
-          if [ -z "$NEXT_RELEASE_VERSION" ]; then
-            echo "ERROR: NEXT_RELEASE_VERSION variable is not set"
-            exit 1
-          fi
-          
-          if [[ ! "$NEXT_RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}$ ]]; then
-            echo "ERROR: NEXT_RELEASE_VERSION format is invalid: $NEXT_RELEASE_VERSION"
-            echo "Expected format: YY.ww (two digits, dot, two digits, e.g., 25.50)"
-            exit 1
-          fi
-          
-          echo "Validated NEXT_RELEASE_VERSION: $NEXT_RELEASE_VERSION"
-          
-          # Update Jira fix version via API
-          JIRA_BASE_URL="https://appdevforall.atlassian.net"
-          JIRA_API_URL="${JIRA_BASE_URL}/rest/api/3/issue/${JIRA_TICKET}"
-          
-          # Prepare JSON payload for fixVersions update
-          # Assumes NEXT_RELEASE_VERSION has already been created in Jira.
-          JSON_PAYLOAD=$(jq -n \
-            --arg version "$NEXT_RELEASE_VERSION" \
-            '{
-              fields: {
-                fixVersions: [{
-                  name: $version
-                }]
-              }
-            }')
-          
-          echo "Updating Jira ticket $JIRA_TICKET with fix version $NEXT_RELEASE_VERSION..."
-          
-          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -X PUT \
-            -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            -d "$JSON_PAYLOAD" \
-            "$JIRA_API_URL")
-          
-          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -n '1p')
-          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | sed -n '2p')
-          
-          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-            echo "Successfully updated Jira ticket $JIRA_TICKET with fix version $NEXT_RELEASE_VERSION"
-          else
-            echo "ERROR: Failed to update Jira ticket"
-            echo "HTTP Status: $HTTP_STATUS"
-            echo "Response: $HTTP_BODY"
-            exit 1
-          fi
-
-      - name: Clean up build folder after upload
-        run: |
-          echo "Cleaning up build folder after Firebase upload..."
-          rm -rf app/build/
-          echo "Build folder cleanup completed"
-
       - name: Send Rich Slack Notification
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -386,18 +223,16 @@ jobs:
           JIRA_TITLE: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
           PR_AUTHOR: ${{ steps.pr_info.outputs.PR_AUTHOR }}
           COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
-          FIREBASE_CONSOLE_URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}
-        run: |          
+        run: |
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           BUILD_TYPE="${{ env.BUILD_TYPE }}"
-          
+
           jq -n \
             --arg jira_url "$JIRA_URL" \
             --arg jira_title "$JIRA_TITLE" \
             --arg commit_msg "$COMMIT_MSG" \
             --arg build_type "$BUILD_TYPE" \
             --arg pr_author "$PR_AUTHOR" \
-            --arg firebase_url "$FIREBASE_CONSOLE_URL" \
             --arg branch_name "$BRANCH_NAME" \
             '{
               blocks: [
@@ -405,15 +240,8 @@ jobs:
                   type: "header",
                   text: {
                     type: "plain_text",
-                    text: ":rocket: New Build Available",
+                    text: ":white_check_mark: New Build Completed",
                     emoji: true
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "@here Please review and test this build."
                   }
                 },
                 {
@@ -437,7 +265,6 @@ jobs:
                     text: "*Commit:* \($commit_msg)"
                   }
                 },
-          
                 {
                   type: "section",
                   text: {
@@ -448,16 +275,6 @@ jobs:
                 {
                   type: "actions",
                   elements: [
-                    {
-                      type: "button",
-                      text: {
-                        type: "plain_text",
-                        text: "View on Firebase",
-                        emoji: true
-                      },
-                      url: $firebase_url,
-                      action_id: "firebase-console"
-                    },
                     {
                       type: "button",
                       text: {
@@ -478,19 +295,17 @@ jobs:
                   elements: [
                     {
                       type: "mrkdwn",
-                      text: "Deployed from branch `\($branch_name)`"
+                      text: "Build completed from branch `\($branch_name)`"
                     }
                   ]
                 }
               ]
             }' > payload.json
-          
+
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
 
           rm -f payload.json
 
       - name: Cleanup google-services.json
         if: always()
-        run: |
-          rm -f app/google-services.json
-          echo "google-services.json cleaned up successfully"
+        run: rm -f app/google-services.json
