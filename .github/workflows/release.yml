@@ -33,7 +33,7 @@ env:
 jobs:
   merge_stage_to_main:
     name: Merge stage to main
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
@@ -140,7 +140,7 @@ jobs:
 
   download_assets:
     name: Download release assets
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: merge_stage_to_main
 
@@ -258,7 +258,7 @@ jobs:
 
   download_documentation:
     name: Download pre-compressed documentation DB
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: download_assets
 
@@ -423,7 +423,7 @@ jobs:
 
   build_apk:
     name: Build Release APK
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: [merge_stage_to_main, download_assets, download_documentation]
     strategy:

@@ -14,7 +14,7 @@ env:
 jobs:
   generate_assets:
     name: Generate Assets Zips
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 90
 
     steps:
