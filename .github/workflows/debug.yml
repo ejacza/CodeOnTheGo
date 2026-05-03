@@ -244,138 +244,9 @@ jobs:
           apk_size_bytes=$( /usr/bin/stat -c '%s' $APK_PATH )
           uv run --with psycopg[binary] scripts/insert-ci-perf-data.py $( basename $APK_PATH ) $GRADLE_START $GRADLE_END $apk_size_bytes
 
-      - name: Deploy to Firebase App Distribution
-        id: firebase_upload
-        env:
-          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          BUILD_TYPE: ${{ env.BUILD_TYPE }}
-          JIRA_TITLE: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
-          JIRA_URL: ${{ steps.extract_jira.outputs.JIRA_URL }}
+      - name: Clean up build folder
         run: |
-          echo "Starting Firebase deployment..."
-          echo "APK Path: $APK_PATH"
-          echo "Firebase App ID: $FIREBASE_APP_ID"
-          
-          # Check if Firebase CLI is authenticated
-          echo "Checking Firebase authentication..."
-          firebase projects:list || {
-            echo "ERROR: Firebase authentication failed"
-            exit 1
-          }
-
-          RELEASE_NOTES_FILE=$(mktemp)
-          cat > "$RELEASE_NOTES_FILE" << EOF
-          Build Type: $BUILD_TYPE
-          JIRA Title: $JIRA_TITLE
-          Ticket: $JIRA_URL
-          EOF
-          
-          echo "Running Firebase distribution command..."
-          set +e  # Disable exit on error temporarily
-          output=$(firebase appdistribution:distribute "$APK_PATH" \
-            --app "$FIREBASE_APP_ID" \
-            --groups "testers" \
-            --release-notes-file "$RELEASE_NOTES_FILE" 2>&1)
-          exit_code=$?
-          set -e  # Re-enable exit on error
-          
-          echo "Firebase command exit code: $exit_code"
-          echo "Firebase command output:"
-          echo "$output"
-          
-          if [ $exit_code -ne 0 ]; then
-            echo "ERROR: Firebase deployment failed with exit code $exit_code"
-            exit 1
-          fi
-
-          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
-
-          if [ -z "$FIREBASE_URL" ]; then
-            FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-          fi
-
-          echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
-
-      - name: Update Jira Fix Version
-        if: github.ref == 'refs/heads/stage'
-        env:
-          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
-          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          NEXT_RELEASE_VERSION: ${{ vars.NEXT_RELEASE_VERSION }}
-        run: |
-          # Try to get Jira ticket from extract_jira step output first (handles branch name and commit message)
-          JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
-          
-          # If extract_jira didn't find a ticket (returned "N/A"), try merge commit message
-          if [ "$JIRA_TICKET" == "N/A" ] || [ -z "$JIRA_TICKET" ]; then
-            MERGE_COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null || echo "")
-            JIRA_TICKET=$(echo "$MERGE_COMMIT_MSG" | grep -o 'ADFA-[0-9]\+' | head -1 || echo "")
-          fi
-          
-          if [ -z "$JIRA_TICKET" ] || [ "$JIRA_TICKET" == "N/A" ]; then
-            echo "ERROR: No Jira ticket found in branch name, commit message, or merge commit"
-            echo "Branch name or commit message must contain a Jira ticket in format ADFA-XXXX"
-            exit 1
-          fi
-          
-          echo "Found Jira ticket: $JIRA_TICKET"
-          
-          # Validate NEXT_RELEASE_VERSION exists and exactly two digits, dot, two digits
-          if [ -z "$NEXT_RELEASE_VERSION" ]; then
-            echo "ERROR: NEXT_RELEASE_VERSION variable is not set"
-            exit 1
-          fi
-          
-          if [[ ! "$NEXT_RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}$ ]]; then
-            echo "ERROR: NEXT_RELEASE_VERSION format is invalid: $NEXT_RELEASE_VERSION"
-            echo "Expected format: YY.ww (two digits, dot, two digits, e.g., 25.50)"
-            exit 1
-          fi
-          
-          echo "Validated NEXT_RELEASE_VERSION: $NEXT_RELEASE_VERSION"
-          
-          # Update Jira fix version via API
-          JIRA_BASE_URL="https://appdevforall.atlassian.net"
-          JIRA_API_URL="${JIRA_BASE_URL}/rest/api/3/issue/${JIRA_TICKET}"
-          
-          # Prepare JSON payload for fixVersions update
-          # Assumes NEXT_RELEASE_VERSION has already been created in Jira.
-          JSON_PAYLOAD=$(jq -n \
-            --arg version "$NEXT_RELEASE_VERSION" \
-            '{
-              fields: {
-                fixVersions: [{
-                  name: $version
-                }]
-              }
-            }')
-          
-          echo "Updating Jira ticket $JIRA_TICKET with fix version $NEXT_RELEASE_VERSION..."
-          
-          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -X PUT \
-            -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            -d "$JSON_PAYLOAD" \
-            "$JIRA_API_URL")
-          
-          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -n '1p')
-          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | sed -n '2p')
-          
-          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-            echo "Successfully updated Jira ticket $JIRA_TICKET with fix version $NEXT_RELEASE_VERSION"
-          else
-            echo "ERROR: Failed to update Jira ticket"
-            echo "HTTP Status: $HTTP_STATUS"
-            echo "Response: $HTTP_BODY"
-            exit 1
-          fi
-
-      - name: Clean up build folder after upload
-        run: |
-          echo "Cleaning up build folder after Firebase upload..."
+          echo "Cleaning up build folder..."
           rm -rf app/build/
           echo "Build folder cleanup completed"
 
@@ -386,7 +257,6 @@ jobs:
           JIRA_TITLE: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
           PR_AUTHOR: ${{ steps.pr_info.outputs.PR_AUTHOR }}
           COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
-          FIREBASE_CONSOLE_URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}
         run: |          
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           BUILD_TYPE="${{ env.BUILD_TYPE }}"
@@ -397,7 +267,6 @@ jobs:
             --arg commit_msg "$COMMIT_MSG" \
             --arg build_type "$BUILD_TYPE" \
             --arg pr_author "$PR_AUTHOR" \
-            --arg firebase_url "$FIREBASE_CONSOLE_URL" \
             --arg branch_name "$BRANCH_NAME" \
             '{
               blocks: [
@@ -405,15 +274,8 @@ jobs:
                   type: "header",
                   text: {
                     type: "plain_text",
-                    text: ":rocket: New Build Available",
+                    text: ":white_check_mark: New Build Completed",
                     emoji: true
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "@here Please review and test this build."
                   }
                 },
                 {
@@ -452,16 +314,6 @@ jobs:
                       type: "button",
                       text: {
                         type: "plain_text",
-                        text: "View on Firebase",
-                        emoji: true
-                      },
-                      url: $firebase_url,
-                      action_id: "firebase-console"
-                    },
-                    {
-                      type: "button",
-                      text: {
-                        type: "plain_text",
                         text: "View Ticket",
                         emoji: true
                       },
@@ -478,7 +330,7 @@ jobs:
                   elements: [
                     {
                       type: "mrkdwn",
-                      text: "Deployed from branch `\($branch_name)`"
+                      text: "Build completed from branch `\($branch_name)`"
                     }
                   ]
                 }
