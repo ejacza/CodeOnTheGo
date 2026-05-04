@@ -771,7 +771,8 @@ tasks.register("recompressApk") {
 	}
 }
 
-val isCiCd = (System.getenv("GITHUB_ACTIONS") == "true") && (propOrEnv("FORCE_HTTP_DOWNLOAD") != "true")
+val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
+val useScp = isCiCd && propOrEnv("FORCE_HTTP_DOWNLOAD") != "true"
 
 val skipLlamaAssets =
 	providers
@@ -1150,7 +1151,7 @@ fun assetsBatch(
 	project: Project,
 	variant: String,
 ) {
-	if (isCiCd) {
+	if (useScp) {
 		val tmpDir = File(projectDir, ".tmp/assets")
 		tmpDir.mkdirs()
 		project.logger.lifecycle("Downloading $variant assets → ${tmpDir.absolutePath}")
@@ -1186,7 +1187,7 @@ fun assetsFileDownload(
 	asset: Asset,
 	target: File,
 ) {
-	if (isCiCd) {
+	if (useScp) {
 		val stagedFile = stagedFileFor(asset, rootProject.projectDir)
 		if (!stagedFile.exists()) {
 			throw GradleException("Staged file not found: ${stagedFile.absolutePath}")
@@ -1228,7 +1229,7 @@ fun assetsFileDownload(
 }
 
 fun assetsFileChecksum(asset: Asset): String? {
-	return if (isCiCd) {
+	return if (useScp) {
 		val stagedChecksum = stagedChecksumFor(asset, rootProject.projectDir)
 		if (stagedChecksum.exists()) {
 			stagedChecksum.readText().trim()
