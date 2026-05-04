@@ -40,8 +40,8 @@ jobs:
         env:
           FORCE_HTTP_DOWNLOAD: 'true'
         run: |
-          flox activate -d flox/base -- ./gradlew :app:assetsDownloadRelease --no-daemon
-          flox activate -d flox/base -- ./gradlew :app:downloadDocDb --no-daemon
+          flox activate -d flox/base -- ./gradlew :app:assetsDownloadRelease --no-daemon --warning-mode none
+          flox activate -d flox/base -- ./gradlew :app:downloadDocDb --no-daemon --warning-mode none
 
       - name: Build Release APK
         env:
@@ -51,7 +51,7 @@ jobs:
           IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
         run: |
           VARIANT_UPPER=$(echo "${{ matrix.variant }}" | tr '[:lower:]' '[:upper:]')
-          flox activate -d flox/base -- ./gradlew :app:assemble${VARIANT_UPPER}Release --no-daemon
+          flox activate -d flox/base -- ./gradlew :app:assemble${VARIANT_UPPER}Release --no-daemon --warning-mode none
 
       - name: Find APK
         id: find_apk
