@@ -996,6 +996,11 @@ fun signApk(apkFile: File) {
 			?: error("Could not find apksigner in any build-tools directory")
 
 	project.logger.lifecycle("APK Signer: ${apkSignerPath.absolutePath}")
+	project.logger.lifecycle("Keystore Path: $keystorePath")
+	val ksFile = File(keystorePath)
+	if (!ksFile.exists()) {
+		project.logger.lifecycle("WARNING: Keystore file does not exist at $keystorePath")
+	}
 
 	ant.withGroovyBuilder {
 		"exec"(
@@ -1003,6 +1008,7 @@ fun signApk(apkFile: File) {
 			"failonerror" to "true",
 		) {
 			"arg"("value" to "sign")
+			"arg"("value" to "--verbose")
 			"arg"("value" to "--v3-signing-enabled")
 			"arg"("value" to "true")
 			"arg"("value" to "--v2-signing-enabled")
