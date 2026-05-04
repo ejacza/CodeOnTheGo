@@ -771,7 +771,7 @@ tasks.register("recompressApk") {
 	}
 }
 
-val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
+val isCiCd = (System.getenv("GITHUB_ACTIONS") == "true") && (propOrEnv("FORCE_HTTP_DOWNLOAD") != "true")
 
 val skipLlamaAssets =
 	providers
