@@ -177,7 +177,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: [check_changes, download_assets]
-    if: needs.check_changes.outputs.must_build == 'true'
+    if: |
+      needs.check_changes.outputs.must_build == 'true' &&
+      (needs.download_assets.result == 'success' || needs.download_assets.result == 'skipped')
     env:
       SKIP_LLAMA_ASSETS: "true"
 
