@@ -31,6 +31,11 @@ jobs:
       - name: Install Flox
         uses: flox/install-flox-action@v2
 
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+
       - name: Run Custom Download Tasks
         env:
           FORCE_HTTP_DOWNLOAD: 'true'
@@ -62,3 +67,7 @@ jobs:
           files: ${{ steps.find_apk.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup google-services.json
+        if: always()
+        run: rm -f app/google-services.json
