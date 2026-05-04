@@ -772,6 +772,7 @@ tasks.register("recompressApk") {
 }
 
 val isCiCd = System.getenv("GITHUB_ACTIONS") == "true"
+val useScp = isCiCd && propOrEnv("FORCE_HTTP_DOWNLOAD") != "true"
 
 val skipLlamaAssets =
 	providers
@@ -995,6 +996,11 @@ fun signApk(apkFile: File) {
 			?: error("Could not find apksigner in any build-tools directory")
 
 	project.logger.lifecycle("APK Signer: ${apkSignerPath.absolutePath}")
+	project.logger.lifecycle("Keystore Path: $keystorePath")
+	val ksFile = File(keystorePath)
+	if (!ksFile.exists()) {
+		project.logger.lifecycle("WARNING: Keystore file does not exist at $keystorePath")
+	}
 
 	ant.withGroovyBuilder {
 		"exec"(
@@ -1002,6 +1008,7 @@ fun signApk(apkFile: File) {
 			"failonerror" to "true",
 		) {
 			"arg"("value" to "sign")
+			"arg"("value" to "--verbose")
 			"arg"("value" to "--v3-signing-enabled")
 			"arg"("value" to "true")
 			"arg"("value" to "--v2-signing-enabled")
@@ -1150,7 +1157,7 @@ fun assetsBatch(
 	project: Project,
 	variant: String,
 ) {
-	if (isCiCd) {
+	if (useScp) {
 		val tmpDir = File(projectDir, ".tmp/assets")
 		tmpDir.mkdirs()
 		project.logger.lifecycle("Downloading $variant assets → ${tmpDir.absolutePath}")
@@ -1186,7 +1193,7 @@ fun assetsFileDownload(
 	asset: Asset,
 	target: File,
 ) {
-	if (isCiCd) {
+	if (useScp) {
 		val stagedFile = stagedFileFor(asset, rootProject.projectDir)
 		if (!stagedFile.exists()) {
 			throw GradleException("Staged file not found: ${stagedFile.absolutePath}")
@@ -1228,7 +1235,7 @@ fun assetsFileDownload(
 }
 
 fun assetsFileChecksum(asset: Asset): String? {
-	return if (isCiCd) {
+	return if (useScp) {
 		val stagedChecksum = stagedChecksumFor(asset, rootProject.projectDir)
 		if (stagedChecksum.exists()) {
 			stagedChecksum.readText().trim()

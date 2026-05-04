@@ -1,0 +1,73 @@
+name: Custom Build and Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build_and_release:
+    name: Build and Release APK
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        variant: [v7, v8]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install Flox
+        uses: flox/install-flox-action@v2
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+
+      - name: Run Custom Download Tasks
+        env:
+          FORCE_HTTP_DOWNLOAD: 'true'
+        run: |
+          flox activate -d flox/base -- ./gradlew :app:assetsDownloadRelease --no-daemon --warning-mode none
+          flox activate -d flox/base -- ./gradlew :app:downloadDocDb --no-daemon --warning-mode none
+
+      - name: Build Release APK
+        env:
+          FORCE_HTTP_DOWNLOAD: 'true'
+          IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
+          IDE_SIGNING_KEY_PASS: ${{ secrets.IDE_SIGNING_KEY_PASS }}
+          IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
+        run: |
+          VARIANT_UPPER=$(echo "${{ matrix.variant }}" | tr '[:lower:]' '[:upper:]')
+          flox activate -d flox/base -- ./gradlew :app:assemble${VARIANT_UPPER}Release --no-daemon --warning-mode none
+
+      - name: Find APK
+        id: find_apk
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/ -path "*${{ matrix.variant }}*/release/*.apk" | head -n 1)
+          echo "path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "name=$(basename $APK_PATH)" >> $GITHUB_OUTPUT
+
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ steps.find_apk.outputs.path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup google-services.json
+        if: always()
+        run: rm -f app/google-services.json
